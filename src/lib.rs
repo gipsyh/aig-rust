@@ -1,30 +1,61 @@
-use std::{io, ops::Range, path::Path};
+use std::{
+    io,
+    ops::{Index, Range},
+    path::Path,
+    slice::Iter,
+};
+
+mod fraig;
+mod simulate;
 
 type AigNodeId = usize;
 
 #[derive(Debug)]
 pub struct AigNode {
+    id: AigNodeId,
     fanin0: Option<AigEdge>,
     fanin1: Option<AigEdge>,
 }
 
 impl AigNode {
-    pub fn new_input() -> Self {
+    pub fn new_input(id: usize) -> Self {
         Self {
+            id,
             fanin0: None,
             fanin1: None,
         }
     }
 
-    fn new_and(fanin0: AigEdge, fanin1: AigEdge) -> Self {
+    pub fn new_and(id: usize, fanin0: AigEdge, fanin1: AigEdge) -> Self {
         Self {
+            id,
             fanin0: Some(fanin0),
             fanin1: Some(fanin1),
         }
     }
+
+    pub fn node_id(&self) -> AigNodeId {
+        self.id
+    }
+
+    pub fn is_and(&self) -> bool {
+        self.fanin0.is_some() && self.fanin1.is_some()
+    }
+
+    pub fn is_input(&self) -> bool {
+        self.fanin0.is_none() && self.fanin1.is_none()
+    }
+
+    pub fn fanin0(&self) -> Option<AigEdge> {
+        self.fanin0
+    }
+
+    pub fn fanin1(&self) -> Option<AigEdge> {
+        self.fanin1
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct AigEdge {
     /// if id is none, it means the node is true
     id: Option<AigNodeId>,
@@ -32,11 +63,26 @@ pub struct AigEdge {
 }
 
 impl AigEdge {
-    fn new(id: AigNodeId, complement: bool) -> Self {
+    pub fn new(id: AigNodeId, complement: bool) -> Self {
         Self {
             id: Some(id),
             complement,
         }
+    }
+
+    pub fn value(&self) -> Option<bool> {
+        match self.id {
+            Some(_) => None,
+            None => Some(!self.complement),
+        }
+    }
+
+    pub fn node_id(&self) -> AigNodeId {
+        self.id.unwrap()
+    }
+
+    pub fn compl(&self) -> bool {
+        self.complement
     }
 }
 
@@ -82,8 +128,8 @@ impl Aig {
         let file = std::fs::File::open(file)?;
         let aiger = aiger::Reader::from_reader(file).unwrap();
         let header = aiger.header();
-        let inputs = 0..header.i;
-        let ands = header.i..header.i + header.a;
+        let inputs = 0..header.i + header.l;
+        let ands = header.i + header.l..header.i + header.l + header.a;
         let mut nodes: Vec<AigNode> = Vec::with_capacity(header.m);
         let nodes_remaining = nodes.spare_capacity_mut();
         let mut outputs = Vec::new();
@@ -92,10 +138,12 @@ impl Aig {
             let obj = obj.unwrap();
             match obj {
                 aiger::Aiger::Input(input) => {
-                    nodes_remaining[input.0 / 2 - 1].write(AigNode::new_input());
+                    let id = input.0 / 2 - 1;
+                    nodes_remaining[id].write(AigNode::new_input(id));
                 }
                 aiger::Aiger::Latch { output, input } => {
-                    nodes_remaining[output.0 / 2 - 1].write(AigNode::new_input());
+                    let id = output.0 / 2 - 1;
+                    nodes_remaining[id].write(AigNode::new_input(id));
                     latchs.push(AigLatch::new(
                         output.0 / 2 - 1,
                         AigEdge::new(input.0 / 2 - 1, input.0 & 0x1 != 0),
@@ -103,7 +151,9 @@ impl Aig {
                 }
                 aiger::Aiger::Output(o) => outputs.push(AigEdge::new(o.0 / 2 - 1, o.0 & 0x1 != 0)),
                 aiger::Aiger::AndGate { output, inputs } => {
-                    nodes_remaining[output.0 / 2 - 1].write(AigNode::new_and(
+                    let id = output.0 / 2 - 1;
+                    nodes_remaining[id].write(AigNode::new_and(
+                        id,
                         AigEdge::new(inputs[0].0 / 2 - 1, inputs[0].0 & 0x1 != 0),
                         AigEdge::new(inputs[1].0 / 2 - 1, inputs[1].0 & 0x1 != 0),
                     ));
@@ -120,6 +170,34 @@ impl Aig {
     }
 
     pub fn top_sort(&mut self) {}
+
+    fn num_inputs(&self) -> usize {
+        self.inputs.len()
+    }
+
+    fn num_ands(&self) -> usize {
+        self.ands.len()
+    }
+
+    pub fn num_nodes(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn inputs_iter(&self) -> Iter<AigNode> {
+        todo!()
+    }
+
+    pub fn ands_iter(&self) -> Iter<AigNode> {
+        self.nodes[self.ands.clone()].iter()
+    }
+}
+
+impl Index<AigNodeId> for Aig {
+    type Output = AigNode;
+
+    fn index(&self, index: AigNodeId) -> &Self::Output {
+        &self.nodes[index]
+    }
 }
 
 #[cfg(test)]
