@@ -74,8 +74,8 @@ impl AigSimulation {
         }
         for and in aig.ands_iter() {
             dbg!(and.node_id());
-            let fanin0 = and.fanin0().unwrap();
-            let fanin1 = and.fanin1().unwrap();
+            let fanin0 = and.fanin0();
+            let fanin1 = and.fanin1();
             assert!(simulations.len() == and.node_id());
             let sim0 = if fanin0.compl() {
                 !simulations[fanin0.node_id()].clone()
@@ -93,6 +93,10 @@ impl AigSimulation {
             nwords,
             simulations,
         }
+    }
+
+    pub fn simulations(&self) -> &Vec<SimulationWords> {
+        &self.simulations
     }
 }
 
