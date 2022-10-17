@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     io,
     mem::swap,
     ops::{Index, Range},
@@ -16,7 +16,7 @@ type AigNodeId = usize;
 #[derive(Debug)]
 pub struct AigNode {
     id: AigNodeId,
-    size: Option<usize>,
+    size: usize,
     fanin0: Option<AigEdge>,
     fanin1: Option<AigEdge>,
     fanouts: Vec<AigEdge>,
@@ -26,7 +26,7 @@ impl AigNode {
     pub fn new_input(id: usize) -> Self {
         Self {
             id,
-            size: None,
+            size: 0,
             fanin0: None,
             fanin1: None,
             fanouts: Vec::new(),
@@ -39,7 +39,7 @@ impl AigNode {
         }
         Self {
             id,
-            size: None,
+            size: 0,
             fanin0: Some(fanin0),
             fanin1: Some(fanin1),
             fanouts: Vec::new(),
@@ -127,7 +127,7 @@ impl Aig {
             strash_map: None,
         };
         ret.setup_fanouts();
-        // ret.setup_subnode_size();
+        ret.setup_subnode_size();
         ret
     }
 
@@ -144,6 +144,39 @@ impl Aig {
             let fanin1 = &mut self.nodes[fanin1id];
             fanin1.fanouts.push(AigEdge::new(and_idx, compl));
         }
+    }
+
+    fn setup_subnode_size(&mut self) {
+        for ci in 0..self.nodes.len() {
+            self.nodes[ci].size += 1;
+            let mut flag = vec![false; self.num_nodes()];
+            let mut queue = VecDeque::new();
+            for fanout in &self.nodes[ci].fanouts {
+                if !flag[fanout.id] {
+                    queue.push_back(fanout.id);
+                    flag[fanout.id] = true;
+                }
+            }
+            while !queue.is_empty() {
+                let node = queue.pop_front().unwrap();
+                self.nodes[node].size += 1;
+                for fanout in &self.nodes[node].fanouts {
+                    if !flag[fanout.id] {
+                        queue.push_back(fanout.id);
+                        flag[fanout.id] = true;
+                    }
+                }
+            }
+        }
+
+        // for idx in self.ands.clone() {
+        //     dbg!(idx);
+        //     let and = &self.nodes[idx];
+        //     let fanin0 = self.nodes[and.fanin0().node_id()].size.unwrap();
+        //     let fanin1 = self.nodes[and.fanin1().node_id()].size.unwrap();
+        //     let and = &mut self.nodes[idx];
+        //     and.size = Some(fanin0 + fanin1 + 1);
+        // }
     }
 
     pub fn from_file<P: AsRef<Path>>(file: P) -> io::Result<Self> {
@@ -226,21 +259,6 @@ impl Aig {
     }
 }
 
-impl Aig {
-    // fn setup_subnode_size(&mut self) {
-    //     for ci in self.inputs {}
-
-    //     // for idx in self.ands.clone() {
-    //     //     dbg!(idx);
-    //     //     let and = &self.nodes[idx];
-    //     //     let fanin0 = self.nodes[and.fanin0().node_id()].size.unwrap();
-    //     //     let fanin1 = self.nodes[and.fanin1().node_id()].size.unwrap();
-    //     //     let and = &mut self.nodes[idx];
-    //     //     and.size = Some(fanin0 + fanin1 + 1);
-    //     // }
-    // }
-}
-
 impl Index<AigNodeId> for Aig {
     type Output = AigNode;
 
@@ -254,7 +272,7 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test_from_file() {
-        let aig = Aig::from_file("aigs/xor.aag").unwrap();
+        let aig = Aig::from_file("aigs/counter.aag").unwrap();
         dbg!(aig);
     }
 }
