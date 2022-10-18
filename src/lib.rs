@@ -36,6 +36,7 @@ pub enum AigNodeType {
 #[derive(Debug)]
 pub struct AigNode {
     id: AigNodeId,
+    level: usize,
     size: usize,
     typ: AigNodeType,
     fanouts: Vec<AigEdge>,
@@ -48,6 +49,7 @@ impl AigNode {
             size: 0,
             typ: AigNodeType::True,
             fanouts: Vec::new(),
+            level: 0,
         }
     }
 
@@ -57,6 +59,7 @@ impl AigNode {
             size: 0,
             typ: AigNodeType::PrimeInput,
             fanouts: Vec::new(),
+            level: 0,
         }
     }
 
@@ -66,10 +69,11 @@ impl AigNode {
             size: 0,
             typ: AigNodeType::LatchInput,
             fanouts: Vec::new(),
+            level: 0,
         }
     }
 
-    fn new_and(id: usize, mut fanin0: AigEdge, mut fanin1: AigEdge) -> Self {
+    fn new_and(id: usize, mut fanin0: AigEdge, mut fanin1: AigEdge, level: usize) -> Self {
         if fanin0.node_id() > fanin1.node_id() {
             swap(&mut fanin0, &mut fanin1);
         }
@@ -78,6 +82,7 @@ impl AigNode {
             size: 0,
             typ: AigNodeType::And(fanin0, fanin1),
             fanouts: Vec::new(),
+            level,
         }
     }
 
@@ -213,7 +218,11 @@ impl Aig {
     pub fn new_and_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
         assert!(self.node_is_valid(fanin0.node_id()) && self.node_is_valid(fanin1.node_id()));
         let nodeid = self.nodes.len();
-        let and = AigNode::new_and(nodeid, fanin0, fanin1);
+        let level = self.nodes[fanin0.node_id()]
+            .level
+            .max(self.nodes[fanin1.node_id()].level)
+            + 1;
+        let and = AigNode::new_and(nodeid, fanin0, fanin1, level);
         self.nodes.push(and);
         self.num_ands += 1;
         self.nodes[fanin0.id]
@@ -244,6 +253,18 @@ impl Aig {
 }
 
 impl Aig {
+    fn setup_levels(&mut self) {
+        let mut levels = vec![0; self.num_nodes()];
+        for and in self.ands_iter() {
+            let fanin0 = and.fanin0().node_id();
+            let fanin1 = and.fanin1().node_id();
+            levels[and.node_id()] = levels[fanin0].max(levels[fanin1]) + 1;
+        }
+        for (id, node) in levels.iter().enumerate().take(self.num_nodes()) {
+            self.nodes[id].level = *node;
+        }
+    }
+
     fn setup_fanouts(&mut self) {
         let mut fanouts = vec![vec![]; self.num_nodes()];
         for and in self.ands_iter() {
@@ -319,6 +340,7 @@ impl Aig {
                         id,
                         AigEdge::new(inputs[0].0 / 2, inputs[0].0 & 0x1 != 0),
                         AigEdge::new(inputs[1].0 / 2, inputs[1].0 & 0x1 != 0),
+                        0,
                     ));
                 }
                 aiger::Aiger::Symbol {
@@ -339,6 +361,7 @@ impl Aig {
             num_ands: header.a,
             strash_map: HashMap::new(),
         };
+        ret.setup_levels();
         ret.setup_fanouts();
         Ok(ret)
     }
