@@ -1,7 +1,11 @@
+#![feature(assert_matches)]
+
 use std::{
+    assert_matches::assert_matches,
     collections::HashMap,
+    fmt::{Display, Write},
     io,
-    mem::{replace, swap},
+    mem::{replace, swap, take},
     ops::{Index, Not},
     path::Path,
     slice::Iter,
@@ -47,11 +51,20 @@ impl AigNode {
         }
     }
 
-    fn new_input(id: usize) -> Self {
+    fn new_prime_input(id: usize) -> Self {
         Self {
             id,
             size: 0,
             typ: AigNodeType::PrimeInput,
+            fanouts: Vec::new(),
+        }
+    }
+
+    fn new_latch_input(id: usize) -> Self {
+        Self {
+            id,
+            size: 0,
+            typ: AigNodeType::LatchInput,
             fanouts: Vec::new(),
         }
     }
@@ -74,7 +87,7 @@ impl AigNode {
 
     pub fn fanin0(&self) -> AigEdge {
         if let AigNodeType::And(ret, _) = self.typ {
-            return ret;
+            ret
         } else {
             panic!();
         }
@@ -82,9 +95,20 @@ impl AigNode {
 
     pub fn fanin1(&self) -> AigEdge {
         if let AigNodeType::And(_, ret) = self.typ {
-            return ret;
+            ret
         } else {
             panic!();
+        }
+    }
+}
+
+impl Display for AigNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.typ {
+            AigNodeType::True => write!(f, "True"),
+            AigNodeType::PrimeInput => write!(f, "PI{}", self.id),
+            AigNodeType::LatchInput => write!(f, "LI{}", self.id),
+            AigNodeType::And(_, _) => write!(f, "A{}", self.id),
         }
     }
 }
@@ -95,7 +119,7 @@ impl Into<AigEdge> for AigNode {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AigEdge {
     id: AigNodeId,
     complement: bool,
@@ -121,6 +145,15 @@ impl AigEdge {
 
     pub fn compl(&self) -> bool {
         self.complement
+    }
+}
+
+impl Display for AigEdge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.complement {
+            write!(f, "!")?;
+        }
+        Ok(())
     }
 }
 
@@ -170,7 +203,7 @@ impl Aig {
 
     pub fn new_input_node(&mut self) -> AigNodeId {
         let nodeid = self.nodes.len();
-        let input = AigNode::new_input(nodeid);
+        let input = AigNode::new_prime_input(nodeid);
         self.nodes.push(input);
         self.cinputs.push(nodeid);
         self.num_inputs += 1;
@@ -259,12 +292,12 @@ impl Aig {
             match obj {
                 aiger::Aiger::Input(input) => {
                     let id = input.0 / 2;
-                    nodes_remaining[id].write(AigNode::new_input(id));
+                    nodes_remaining[id].write(AigNode::new_prime_input(id));
                     cinputs.push(id);
                 }
                 aiger::Aiger::Latch { output, input } => {
                     let id = output.0 / 2;
-                    nodes_remaining[id].write(AigNode::new_input(id));
+                    nodes_remaining[id].write(AigNode::new_latch_input(id));
                     latchs.push(AigLatch::new(
                         id,
                         AigEdge::new(input.0 / 2, input.0 & 0x1 != 0),
@@ -329,27 +362,28 @@ impl Aig {
     // }
 
     pub fn ands_iter(&self) -> impl Iterator<Item = &AigNode> {
-        self.nodes.iter().filter(|node| match node.typ {
-            AigNodeType::And(_, _) => true,
-            _ => false,
-        })
+        self.nodes
+            .iter()
+            .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
     }
 
     pub fn ands_iter_mut(&mut self) -> impl Iterator<Item = &mut AigNode> {
-        self.nodes.iter_mut().filter(|node| match node.typ {
-            AigNodeType::And(_, _) => true,
-            _ => false,
-        })
+        self.nodes
+            .iter_mut()
+            .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
     }
 }
 
 impl Aig {
     pub fn merge_latch_outputs_into_pinputs(&mut self) -> (Vec<(AigNodeId, AigNodeId)>, AigEdge) {
-        let latchs = replace(&mut self.latchs, Vec::new());
+        let latchs = take(&mut self.latchs);
         self.num_latchs = 0;
         let mut ret = Vec::new();
         let mut equals = Vec::new();
         for AigLatch { input, next } in latchs {
+            assert_matches!(self.nodes[input].typ, AigNodeType::LatchInput);
+            self.nodes[input].typ = AigNodeType::PrimeInput;
+            self.num_inputs += 1;
             let inode = self.new_input_node();
             ret.push((input, inode));
             let equal_node = self.new_equal_node(next, inode.into());
@@ -372,9 +406,40 @@ impl Index<AigNodeId> for Aig {
     }
 }
 
+impl Display for Aig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "==================")?;
+        writeln!(f, "input num: {}", self.num_inputs,)?;
+        writeln!(f, "latch num: {}", self.latchs.len())?;
+        writeln!(f, "and num: {}", self.num_ands)?;
+        writeln!(f, "output num: {}", self.outputs.len())?;
+        writeln!(f, "------------------")?;
+        write!(f, "cinputs:")?;
+        for ci in &self.cinputs {
+            write!(f, " I{}", *ci)?;
+        }
+        writeln!(f, "\n------------------")?;
+        for and in self.ands_iter() {
+            let fanin0 = and.fanin0();
+            let fanin1 = and.fanin1();
+            writeln!(
+                f,
+                "{} = {}{} & {}{}",
+                self.nodes[and.node_id()],
+                fanin0,
+                self.nodes[fanin0.node_id()],
+                fanin1,
+                self.nodes[fanin1.node_id()]
+            )?;
+        }
+        writeln!(f, "==================")?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Aig, AigEdge};
+    use crate::Aig;
     #[test]
     fn test_from_file() {
         let aig = Aig::from_file("aigs/counter.aag").unwrap();
@@ -385,6 +450,6 @@ mod tests {
     fn setup_transition() {
         let mut aig = Aig::from_file("aigs/counter.aag").unwrap();
         aig.merge_latch_outputs_into_pinputs();
-        dbg!(aig);
+        println!("{}", aig);
     }
 }
