@@ -20,8 +20,8 @@ impl FrAig {
     fn do_fraig(aig: &mut Aig, param: FraigParam) {
         for _ in 0..param.sim_nrounds {
             // let map = HashMap::new();
-            let sims = AigSimulation::new(aig, param.sim_nwords);
-            for sim in sims.simulations() {}
+            // let sims = AigSimulation::new(aig, param.sim_nwords);
+            // for sim in sims.simulations() {}
         }
         todo!()
     }

@@ -66,34 +66,34 @@ pub struct AigSimulation {
 }
 
 impl AigSimulation {
-    pub fn new(aig: &Aig, nwords: usize) -> Self {
-        let mut rwg = RandomWordGenerator::new();
-        let mut simulations = Vec::new();
-        for _ in 0..aig.num_inputs() {
-            simulations.push(SimulationWords::new(nwords, &mut rwg));
-        }
-        for and in aig.ands_iter() {
-            dbg!(and.node_id());
-            let fanin0 = and.fanin0();
-            let fanin1 = and.fanin1();
-            assert!(simulations.len() == and.node_id());
-            let sim0 = if fanin0.compl() {
-                !simulations[fanin0.node_id()].clone()
-            } else {
-                simulations[fanin0.node_id()].clone()
-            };
-            let sim1 = if fanin1.compl() {
-                !simulations[fanin1.node_id()].clone()
-            } else {
-                simulations[fanin1.node_id()].clone()
-            };
-            simulations.push(sim0 & sim1);
-        }
-        Self {
-            nwords,
-            simulations,
-        }
-    }
+    // pub fn new(aig: &Aig, nwords: usize) -> Self {
+    //     let mut rwg = RandomWordGenerator::new();
+    //     let mut simulations = Vec::new();
+    //     for _ in 0..aig.num_inputs() {
+    //         simulations.push(SimulationWords::new(nwords, &mut rwg));
+    //     }
+    //     for and in aig.ands_iter() {
+    //         dbg!(and.node_id());
+    //         let fanin0 = and.fanin0();
+    //         let fanin1 = and.fanin1();
+    //         assert!(simulations.len() == and.node_id());
+    //         let sim0 = if fanin0.compl() {
+    //             !simulations[fanin0.node_id()].clone()
+    //         } else {
+    //             simulations[fanin0.node_id()].clone()
+    //         };
+    //         let sim1 = if fanin1.compl() {
+    //             !simulations[fanin1.node_id()].clone()
+    //         } else {
+    //             simulations[fanin1.node_id()].clone()
+    //         };
+    //         simulations.push(sim0 & sim1);
+    //     }
+    //     Self {
+    //         nwords,
+    //         simulations,
+    //     }
+    // }
 
     pub fn simulations(&self) -> &Vec<SimulationWords> {
         &self.simulations
@@ -109,7 +109,7 @@ mod tests {
     fn test_simulation() {
         let aig = Aig::from_file("aigs/counter.aag").unwrap();
         dbg!(&aig);
-        let sim = AigSimulation::new(&aig, 4);
-        dbg!(&sim);
+        // let sim = AigSimulation::new(&aig, 4);
+        // dbg!(&sim);
     }
 }
