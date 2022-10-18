@@ -3,9 +3,9 @@
 use std::{
     assert_matches::assert_matches,
     collections::HashMap,
-    fmt::{Display, Write},
+    fmt::Display,
     io,
-    mem::{replace, swap, take},
+    mem::{swap, take},
     ops::{Index, Not},
     path::Path,
     slice::Iter,
@@ -216,6 +216,12 @@ impl Aig {
         let and = AigNode::new_and(nodeid, fanin0, fanin1);
         self.nodes.push(and);
         self.num_ands += 1;
+        self.nodes[fanin0.id]
+            .fanouts
+            .push(AigEdge::new(nodeid, fanin0.compl()));
+        self.nodes[fanin1.id]
+            .fanouts
+            .push(AigEdge::new(nodeid, fanin1.compl()));
         nodeid.into()
     }
 
@@ -238,20 +244,22 @@ impl Aig {
 }
 
 impl Aig {
-    // fn setup_fanouts(&mut self) {
-    //     for and_idx in self.ands.clone() {
-    //         let fanin0 = &self.nodes[and_idx].fanin0();
-    //         let fanin0id = fanin0.node_id();
-    //         let compl = fanin0.compl();
-    //         let fanin0 = &mut self.nodes[fanin0id];
-    //         fanin0.fanouts.push(AigEdge::new(and_idx, compl));
-    //         let fanin1 = &self.nodes[and_idx].fanin1();
-    //         let fanin1id = fanin1.node_id();
-    //         let compl = fanin1.compl();
-    //         let fanin1 = &mut self.nodes[fanin1id];
-    //         fanin1.fanouts.push(AigEdge::new(and_idx, compl));
-    //     }
-    // }
+    fn setup_fanouts(&mut self) {
+        let mut fanouts = vec![vec![]; self.num_nodes()];
+        for and in self.ands_iter() {
+            let fanin0 = and.fanin0();
+            let fanin0id = fanin0.node_id();
+            let compl = fanin0.compl();
+            fanouts[fanin0id].push(AigEdge::new(and.id, compl));
+            let fanin1 = and.fanin1();
+            let fanin1id = fanin1.node_id();
+            let compl = fanin1.compl();
+            fanouts[fanin1id].push(AigEdge::new(and.id, compl));
+        }
+        for (id, node) in fanouts.iter_mut().enumerate().take(self.num_nodes()) {
+            self.nodes[id].fanouts = take(node);
+        }
+    }
 
     // fn setup_subnode_size(&mut self) {
     //     for ci in 0..self.nodes.len() {
@@ -321,7 +329,7 @@ impl Aig {
             }
         }
         unsafe { nodes.set_len(header.m + 1) };
-        let ret = Self {
+        let mut ret = Self {
             nodes,
             cinputs,
             latchs,
@@ -331,6 +339,7 @@ impl Aig {
             num_ands: header.a,
             strash_map: HashMap::new(),
         };
+        ret.setup_fanouts();
         Ok(ret)
     }
 }
@@ -451,5 +460,6 @@ mod tests {
         let mut aig = Aig::from_file("aigs/counter.aag").unwrap();
         aig.merge_latch_outputs_into_pinputs();
         println!("{}", aig);
+        dbg!(aig);
     }
 }
