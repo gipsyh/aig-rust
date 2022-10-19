@@ -3,6 +3,7 @@
 mod eliminate;
 mod fraig;
 mod migrate;
+mod sat;
 mod simulate;
 mod strash;
 mod symbolic_mc;
@@ -454,6 +455,20 @@ impl Aig {
         self.nodes
             .iter_mut()
             .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
+    }
+
+    pub fn logic_cone(&self, logic: AigEdge) -> Vec<bool> {
+        let mut flag = vec![false; self.num_nodes()];
+        flag[logic.node_id()] = true;
+        for id in (0..self.num_nodes()).rev() {
+            if flag[id] {
+                if self.nodes[id].is_and() {
+                    flag[self.nodes[id].fanin0().node_id()] = true;
+                    flag[self.nodes[id].fanin1().node_id()] = true;
+                }
+            }
+        }
+        flag
     }
 }
 

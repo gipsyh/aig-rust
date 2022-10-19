@@ -8,17 +8,8 @@ impl Aig {
         nodes: &Vec<(AigNodeId, AigNodeId)>,
         logic: AigEdge,
     ) -> AigEdge {
-        let mut flag = vec![false; self.num_nodes()];
+        let flag = self.logic_cone(logic);
         let mut map = vec![None; self.num_nodes()];
-        flag[logic.node_id()] = true;
-        for id in (0..self.num_nodes()).rev() {
-            if flag[id] {
-                if self.nodes[id].is_and() {
-                    flag[self.nodes[id].fanin0().node_id()] = true;
-                    flag[self.nodes[id].fanin1().node_id()] = true;
-                }
-            }
-        }
         for (src, dest) in nodes {
             map[*src] = Some(AigEdge::new(*dest, false));
         }

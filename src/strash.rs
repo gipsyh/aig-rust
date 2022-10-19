@@ -1,4 +1,4 @@
-use crate::{Aig, AigEdge};
+use crate::Aig;
 
 impl Aig {
     pub fn setup_strash(&mut self) {
@@ -10,7 +10,7 @@ impl Aig {
             let fanin1 = self.nodes[and_id].fanin1();
             assert!(fanin0.node_id() < fanin1.node_id());
             match self.strash_map.get(&(fanin0, fanin1)) {
-                Some(id) => {
+                Some(_) => {
                     todo!()
                 }
                 None => {
