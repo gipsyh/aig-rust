@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aiger = "0.2.0"
+aiger = { path = "../aiger-rust" }
 rand = "0.8.5"

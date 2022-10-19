@@ -148,7 +148,7 @@ impl Not for AigEdge {
 
 impl AigEdge {
     pub fn new(id: AigNodeId, complement: bool) -> Self {
-        Self { id: id, complement }
+        Self { id, complement }
     }
 
     pub fn node_id(&self) -> AigNodeId {
@@ -173,11 +173,12 @@ impl Display for AigEdge {
 pub struct AigLatch {
     input: AigNodeId,
     next: AigEdge,
+    init: bool,
 }
 
 impl AigLatch {
-    pub fn new(input: AigNodeId, next: AigEdge) -> Self {
-        Self { input, next }
+    fn new(input: AigNodeId, next: AigEdge, init: bool) -> Self {
+        Self { input, next, init }
     }
 }
 
@@ -187,6 +188,7 @@ pub struct Aig {
     cinputs: Vec<AigNodeId>,
     latchs: Vec<AigLatch>,
     outputs: Vec<AigEdge>,
+    bads: Vec<AigEdge>,
     num_inputs: usize,
     num_latchs: usize,
     num_ands: usize,
@@ -207,18 +209,19 @@ impl Aig {
 }
 
 impl Aig {
-    fn new() -> Self {
-        Self {
-            nodes: vec![AigNode::new_true(0)],
-            latchs: Vec::new(),
-            outputs: Vec::new(),
-            strash_map: HashMap::new(),
-            cinputs: todo!(),
-            num_inputs: 0,
-            num_latchs: 0,
-            num_ands: 0,
-        }
-    }
+    // fn new() -> Self {
+    //     Self {
+    //         nodes: vec![AigNode::new_true(0)],
+    //         latchs: Vec::new(),
+    //         outputs: Vec::new(),
+    //         strash_map: HashMap::new(),
+    //         cinputs: todo!(),
+    //         num_inputs: 0,
+    //         num_latchs: 0,
+    //         num_ands: 0,
+    //         bads: todo!(),
+    //     }
+    // }
 
     pub fn new_input_node(&mut self) -> AigNodeId {
         let nodeid = self.nodes.len();
@@ -231,6 +234,18 @@ impl Aig {
 
     pub fn new_and_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
         assert!(self.node_is_valid(fanin0.node_id()) && self.node_is_valid(fanin1.node_id()));
+        if fanin0 == Aig::constant_edge(true) {
+            return fanin1;
+        }
+        if fanin0 == Aig::constant_edge(false) {
+            return Aig::constant_edge(false);
+        }
+        if fanin1 == Aig::constant_edge(true) {
+            return fanin0;
+        }
+        if fanin1 == Aig::constant_edge(false) {
+            return Aig::constant_edge(false);
+        }
         if fanin0 == fanin1 {
             fanin0
         } else if fanin0 == !fanin1 {
@@ -338,6 +353,7 @@ impl Aig {
         let nodes_remaining = nodes.spare_capacity_mut();
         nodes_remaining[0].write(AigNode::new_true(0));
         let mut outputs = Vec::new();
+        let mut bads = Vec::new();
         let mut cinputs = Vec::new();
         let mut latchs = Vec::new();
         for obj in aiger.records() {
@@ -348,16 +364,22 @@ impl Aig {
                     nodes_remaining[id].write(AigNode::new_prime_input(id));
                     cinputs.push(id);
                 }
-                aiger::Aiger::Latch { output, input } => {
+                aiger::Aiger::Latch {
+                    output,
+                    input,
+                    init,
+                } => {
                     let id = output.0 / 2;
                     nodes_remaining[id].write(AigNode::new_latch_input(id));
                     latchs.push(AigLatch::new(
                         id,
                         AigEdge::new(input.0 / 2, input.0 & 0x1 != 0),
+                        init,
                     ));
                     cinputs.push(id);
                 }
                 aiger::Aiger::Output(o) => outputs.push(AigEdge::new(o.0 / 2, o.0 & 0x1 != 0)),
+                aiger::Aiger::BadState(b) => bads.push(AigEdge::new(b.0 / 2, b.0 & 0x1 != 0)),
                 aiger::Aiger::AndGate { output, inputs } => {
                     let id = output.0 / 2;
                     nodes_remaining[id].write(AigNode::new_and(
@@ -367,7 +389,11 @@ impl Aig {
                         0,
                     ));
                 }
-                _ => todo!(),
+                aiger::Aiger::Symbol {
+                    type_spec: _,
+                    position: _,
+                    symbol: _,
+                } => (),
             }
         }
         unsafe { nodes.set_len(header.m + 1) };
@@ -376,6 +402,7 @@ impl Aig {
             cinputs,
             latchs,
             outputs,
+            bads,
             num_inputs: header.i,
             num_latchs: header.l,
             num_ands: header.a,
@@ -419,13 +446,17 @@ impl Aig {
 }
 
 impl Aig {
-    pub fn merge_latch_outputs_into_pinputs(&mut self) -> (Vec<(AigNodeId, AigNodeId)>, AigEdge) {
+    pub fn transfer_latch_outputs_into_pinputs(
+        &mut self,
+    ) -> (Vec<(AigNodeId, AigNodeId)>, AigEdge) {
         let latchs = take(&mut self.latchs);
         self.num_latchs = 0;
         let mut ret = Vec::new();
         let mut equals = Vec::new();
-        for AigLatch { input, next } in latchs {
+        for AigLatch { input, next, init } in latchs {
             assert_matches!(self.nodes[input].typ, AigNodeType::LatchInput);
+            let init_equal_node = self.new_equal_node(input.into(), Aig::constant_edge(init));
+            equals.push(init_equal_node);
             self.nodes[input].typ = AigNodeType::PrimeInput;
             self.num_inputs += 1;
             let inode = self.new_input_node();
@@ -434,6 +465,7 @@ impl Aig {
             equals.push(equal_node);
         }
         let retedge = self.new_and_nodes(equals);
+        self.outputs.push(retedge);
         (ret, retedge)
     }
 }
@@ -451,8 +483,9 @@ impl Display for Aig {
         writeln!(f, "==================")?;
         writeln!(f, "input num: {}", self.num_inputs,)?;
         writeln!(f, "latch num: {}", self.latchs.len())?;
-        writeln!(f, "and num: {}", self.num_ands)?;
         writeln!(f, "output num: {}", self.outputs.len())?;
+        writeln!(f, "and num: {}", self.num_ands)?;
+        writeln!(f, "bad state num: {}", self.bads.len())?;
         writeln!(f, "------------------")?;
         write!(f, "cinputs:")?;
         for ci in &self.cinputs {
@@ -483,6 +516,17 @@ impl Display for Aig {
                 self.nodes[self.outputs[idx].node_id()]
             )?;
         }
+        writeln!(f, "------------------")?;
+        writeln!(f, "bad states:")?;
+        for idx in 0..self.bads.len() {
+            writeln!(
+                f,
+                "B{}: {}{}",
+                idx + 1,
+                self.bads[idx],
+                self.nodes[self.bads[idx].node_id()]
+            )?;
+        }
         writeln!(f, "==================")?;
         Ok(())
     }
@@ -493,17 +537,19 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test_from_file() {
-        let mut aig = Aig::from_file("aigs/xor.aag").unwrap();
+        let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
         println!("{}", aig);
-        aig.eliminate_input(1);
-        println!("{}", aig);
+        // aig.eliminate_input(1);
+        // println!("{}", aig);
     }
 
     #[test]
     fn setup_transition() {
-        let mut aig = Aig::from_file("aigs/counter.aag").unwrap();
-        aig.merge_latch_outputs_into_pinputs();
+        let mut aig = Aig::from_file("aigs/counter_init11.aag").unwrap();
         println!("{}", aig);
-        dbg!(aig);
+        aig.transfer_latch_outputs_into_pinputs();
+        aig.eliminate_input(1);
+        aig.eliminate_input(2);
+        println!("{}", aig);
     }
 }
