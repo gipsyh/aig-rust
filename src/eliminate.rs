@@ -23,7 +23,7 @@ impl Aig {
                 }
             }
             if node == eid {
-                value[eid] = Some(AigEdge::new(0, !polarity));
+                value[eid] = Some(Aig::constant_edge(!polarity));
                 continue;
             }
             assert!(self.nodes[node].is_and());
@@ -46,13 +46,13 @@ impl Aig {
             }
             value[node] = Some(if fanin0.node_id() == 0 {
                 if fanin0.compl() {
-                    AigEdge::new(0, true)
+                    Aig::constant_edge(false)
                 } else {
                     fanin1
                 }
             } else if fanin1.node_id() == 0 {
                 if fanin1.compl() {
-                    AigEdge::new(0, true)
+                    Aig::constant_edge(false)
                 } else {
                     fanin0
                 }
@@ -79,8 +79,12 @@ impl Aig {
     pub fn eliminate_input(&mut self, eid: AigNodeId) {
         let num_nodes = self.num_nodes();
         let out_true = self.eliminate_input_polarity(eid, true, num_nodes);
-        dbg!(out_true);
         let out_false = self.eliminate_input_polarity(eid, false, num_nodes);
-        dbg!(out_false);
+        assert_eq!(out_true.len(), out_false.len());
+        let mut out = Vec::new();
+        for id in 0..out_true.len() {
+            out.push(self.new_or_node(out_true[id], out_false[id]));
+        }
+        self.outputs = out;
     }
 }

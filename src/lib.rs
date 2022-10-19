@@ -194,6 +194,13 @@ pub struct Aig {
 }
 
 impl Aig {
+    fn constant_edge(polarity: bool) -> AigEdge {
+        AigEdge {
+            id: 0,
+            complement: !polarity,
+        }
+    }
+
     fn node_is_valid(&self, node: AigNodeId) -> bool {
         self.nodes.len() > node
     }
@@ -224,21 +231,31 @@ impl Aig {
 
     pub fn new_and_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
         assert!(self.node_is_valid(fanin0.node_id()) && self.node_is_valid(fanin1.node_id()));
-        let nodeid = self.nodes.len();
-        let level = self.nodes[fanin0.node_id()]
-            .level
-            .max(self.nodes[fanin1.node_id()].level)
-            + 1;
-        let and = AigNode::new_and(nodeid, fanin0, fanin1, level);
-        self.nodes.push(and);
-        self.num_ands += 1;
-        self.nodes[fanin0.id]
-            .fanouts
-            .push(AigEdge::new(nodeid, fanin0.compl()));
-        self.nodes[fanin1.id]
-            .fanouts
-            .push(AigEdge::new(nodeid, fanin1.compl()));
-        nodeid.into()
+        if fanin0 == fanin1 {
+            fanin0
+        } else if fanin0 == !fanin1 {
+            Aig::constant_edge(false)
+        } else {
+            let nodeid = self.nodes.len();
+            let level = self.nodes[fanin0.node_id()]
+                .level
+                .max(self.nodes[fanin1.node_id()].level)
+                + 1;
+            let and = AigNode::new_and(nodeid, fanin0, fanin1, level);
+            self.nodes.push(and);
+            self.num_ands += 1;
+            self.nodes[fanin0.id]
+                .fanouts
+                .push(AigEdge::new(nodeid, fanin0.compl()));
+            self.nodes[fanin1.id]
+                .fanouts
+                .push(AigEdge::new(nodeid, fanin1.compl()));
+            nodeid.into()
+        }
+    }
+
+    pub fn new_or_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
+        !self.new_and_node(!fanin0, !fanin1)
     }
 
     pub fn new_equal_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
@@ -419,10 +436,6 @@ impl Aig {
         let retedge = self.new_and_nodes(equals);
         (ret, retedge)
     }
-
-    fn replace_node(&mut self, src_node: AigNodeId, dst_node: AigNodeId, compl: bool) {
-        todo!()
-    }
 }
 
 impl Index<AigNodeId> for Aig {
@@ -457,6 +470,17 @@ impl Display for Aig {
                 self.nodes[fanin0.node_id()],
                 fanin1,
                 self.nodes[fanin1.node_id()]
+            )?;
+        }
+        writeln!(f, "------------------")?;
+        writeln!(f, "outputs:")?;
+        for idx in 0..self.outputs.len() {
+            writeln!(
+                f,
+                "O{}: {}{}",
+                idx + 1,
+                self.outputs[idx],
+                self.nodes[self.outputs[idx].node_id()]
             )?;
         }
         writeln!(f, "==================")?;
