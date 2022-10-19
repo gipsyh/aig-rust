@@ -361,7 +361,7 @@ impl Aig {
         let file = std::fs::File::open(file)?;
         let aiger = aiger::Reader::from_reader(file).unwrap();
         let header = aiger.header();
-        let mut nodes: Vec<AigNode> = Vec::with_capacity(header.m + 1);
+        let mut nodes: Vec<AigNode> = Vec::with_capacity(header.i + header.l + header.a + 1);
         let nodes_remaining = nodes.spare_capacity_mut();
         nodes_remaining[0].write(AigNode::new_true(0));
         let mut outputs = Vec::new();
@@ -408,7 +408,7 @@ impl Aig {
                 } => (),
             }
         }
-        unsafe { nodes.set_len(header.m + 1) };
+        unsafe { nodes.set_len(header.i + header.l + header.a + 1) };
         let mut ret = Self {
             nodes,
             cinputs,
