@@ -1,5 +1,11 @@
 #![feature(assert_matches)]
 
+mod eliminate;
+mod fraig;
+mod simulate;
+mod strash;
+
+pub use eliminate::*;
 use std::{
     assert_matches::assert_matches,
     collections::HashMap,
@@ -11,11 +17,6 @@ use std::{
     slice::Iter,
     vec,
 };
-
-mod eliminate;
-mod fraig;
-mod simulate;
-mod strash;
 
 type AigNodeId = usize;
 
@@ -40,6 +41,32 @@ pub struct AigNode {
     size: usize,
     typ: AigNodeType,
     fanouts: Vec<AigEdge>,
+}
+
+impl AigNode {
+    pub fn node_id(&self) -> AigNodeId {
+        self.id
+    }
+
+    pub fn is_and(&self) -> bool {
+        matches!(self.typ, AigNodeType::And(_, _))
+    }
+
+    pub fn fanin0(&self) -> AigEdge {
+        if let AigNodeType::And(ret, _) = self.typ {
+            ret
+        } else {
+            panic!();
+        }
+    }
+
+    pub fn fanin1(&self) -> AigEdge {
+        if let AigNodeType::And(_, ret) = self.typ {
+            ret
+        } else {
+            panic!();
+        }
+    }
 }
 
 impl AigNode {
@@ -83,26 +110,6 @@ impl AigNode {
             typ: AigNodeType::And(fanin0, fanin1),
             fanouts: Vec::new(),
             level,
-        }
-    }
-
-    pub fn node_id(&self) -> AigNodeId {
-        self.id
-    }
-
-    pub fn fanin0(&self) -> AigEdge {
-        if let AigNodeType::And(ret, _) = self.typ {
-            ret
-        } else {
-            panic!();
-        }
-    }
-
-    pub fn fanin1(&self) -> AigEdge {
-        if let AigNodeType::And(_, ret) = self.typ {
-            ret
-        } else {
-            panic!();
         }
     }
 }
@@ -183,7 +190,7 @@ pub struct Aig {
     num_inputs: usize,
     num_latchs: usize,
     num_ands: usize,
-    strash_map: HashMap<(AigNodeId, bool, AigNodeId, bool), AigNodeId>,
+    strash_map: HashMap<(AigEdge, AigEdge), AigNodeId>,
 }
 
 impl Aig {
@@ -333,7 +340,7 @@ impl Aig {
                     ));
                     cinputs.push(id);
                 }
-                aiger::Aiger::Output(o) => outputs.push(AigEdge::new(o.0 / 2 - 1, o.0 & 0x1 != 0)),
+                aiger::Aiger::Output(o) => outputs.push(AigEdge::new(o.0 / 2, o.0 & 0x1 != 0)),
                 aiger::Aiger::AndGate { output, inputs } => {
                     let id = output.0 / 2;
                     nodes_remaining[id].write(AigNode::new_and(
@@ -343,11 +350,7 @@ impl Aig {
                         0,
                     ));
                 }
-                aiger::Aiger::Symbol {
-                    type_spec,
-                    position,
-                    symbol,
-                } => todo!(),
+                _ => todo!(),
             }
         }
         unsafe { nodes.set_len(header.m + 1) };
@@ -368,14 +371,6 @@ impl Aig {
 }
 
 impl Aig {
-    fn num_cinputs(&self) -> usize {
-        self.cinputs.len()
-    }
-
-    fn num_ands(&self) -> usize {
-        self.nodes.len() - self.cinputs.len()
-    }
-
     pub fn num_nodes(&self) -> usize {
         self.nodes.len()
     }
@@ -474,8 +469,10 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test_from_file() {
-        let aig = Aig::from_file("aigs/counter.aag").unwrap();
-        dbg!(aig);
+        let mut aig = Aig::from_file("aigs/xor.aag").unwrap();
+        println!("{}", aig);
+        aig.eliminate_input(1);
+        println!("{}", aig);
     }
 
     #[test]
