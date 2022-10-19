@@ -3,7 +3,7 @@ use std::vec;
 use crate::{Aig, AigEdge, AigNode, AigNodeId};
 
 impl Aig {
-    pub fn migrate_logic(&mut self, nodes: Vec<(AigNodeId, AigNodeId)>, logic: AigEdge) -> AigEdge {
+    pub fn migrate_logic(&mut self, nodes: &Vec<(AigNodeId, AigNodeId)>, logic: AigEdge) -> AigEdge {
         let mut flag = vec![false; self.num_nodes()];
         let mut map = vec![None; self.num_nodes()];
         flag[logic.node_id()] = true;
@@ -16,7 +16,7 @@ impl Aig {
             }
         }
         for (src, dest) in nodes {
-            map[src] = Some(AigEdge::new(dest, false));
+            map[*src] = Some(AigEdge::new(*dest, false));
         }
         for id in 0..self.num_nodes() {
             if flag[id] && map[id].is_none() {

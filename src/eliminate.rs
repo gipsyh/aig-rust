@@ -7,7 +7,8 @@ impl Aig {
         eid: AigNodeId,
         polarity: bool,
         ignores_begin: AigNodeId,
-    ) -> Vec<AigEdge> {
+        observes: Vec<AigEdge>,
+    ) -> (Vec<AigEdge>, Vec<AigEdge>) {
         assert_matches!(self.nodes[eid].typ, AigNodeType::PrimeInput);
         assert!(eid < ignores_begin);
         let mut flag = vec![false; self.num_nodes()];
@@ -60,9 +61,10 @@ impl Aig {
                 self.new_and_node(fanin0, fanin1)
             });
         }
-        let mut ret = Vec::new();
+        let mut ret_out = Vec::new();
+        let mut ret_ob = Vec::new();
         for output in &self.outputs {
-            ret.push(match value[output.node_id()] {
+            ret_out.push(match value[output.node_id()] {
                 Some(edge) => {
                     if output.compl() {
                         !edge
@@ -73,18 +75,37 @@ impl Aig {
                 None => *output,
             });
         }
-        ret
+        for observe in &observes {
+            ret_ob.push(match value[observe.node_id()] {
+                Some(edge) => {
+                    if observe.compl() {
+                        !edge
+                    } else {
+                        edge
+                    }
+                }
+                None => *observe,
+            });
+        }
+        (ret_out, ret_ob)
     }
 
-    pub fn eliminate_input(&mut self, eid: AigNodeId) {
+    pub fn eliminate_input(&mut self, eid: AigNodeId, observes: Vec<AigEdge>) -> Vec<AigEdge> {
         let num_nodes = self.num_nodes();
-        let out_true = self.eliminate_input_polarity(eid, true, num_nodes);
-        let out_false = self.eliminate_input_polarity(eid, false, num_nodes);
+        let (out_true, ob_true) =
+            self.eliminate_input_polarity(eid, true, num_nodes, observes.clone());
+        let (out_false, ob_false) = self.eliminate_input_polarity(eid, false, num_nodes, observes);
         assert_eq!(out_true.len(), out_false.len());
+        assert_eq!(ob_true.len(), ob_false.len());
         let mut out = Vec::new();
+        let mut ob = Vec::new();
         for id in 0..out_true.len() {
             out.push(self.new_or_node(out_true[id], out_false[id]));
         }
+        for id in 0..ob_true.len() {
+            ob.push(self.new_or_node(ob_true[id], ob_false[id]));
+        }
         self.outputs = out;
+        ob
     }
 }

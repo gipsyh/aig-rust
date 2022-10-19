@@ -478,7 +478,7 @@ impl Aig {
             self.nodes[input].typ = AigNodeType::PrimeInput;
             self.num_inputs += 1;
             let inode = self.new_input_node();
-            ret.push((input, inode));
+            ret.push((inode, input));
             let equal_node = self.new_equal_node(next, inode.into());
             equals.push(equal_node);
         }
@@ -565,17 +565,23 @@ mod tests {
     fn setup_transition() {
         let mut aig = Aig::from_file("aigs/counter_init11.aag").unwrap();
         println!("{}", aig);
-        let init = aig.latch_init_equation();
+        let reachable = aig.latch_init_equation();
         println!("{}", aig);
         let (_, equation) = aig.transfer_latch_outputs_into_pinputs();
-        let equation = aig.new_and_node(init, equation);
-        aig.add_output(equation);
+        let mut equation = aig.new_and_node(reachable, equation);
         println!("{}", aig);
-        aig.eliminate_input(1);
-        aig.eliminate_input(2);
+        equation = aig.eliminate_input(1, vec![equation])[0];
+        equation = aig.eliminate_input(2, vec![equation])[0];
         println!("{}", aig);
-        let ret = aig.migrate_logic(vec![(7, 1), (11, 2)], AigEdge::new(40, false));
+        dbg!(equation);
+        let constraint = aig.migrate_logic(&vec![(7, 1), (11, 2)], AigEdge::new(40, false));
         println!("{}", aig);
-        dbg!(ret);
+    }
+
+    #[test]
+
+    fn symbolic_mc() {
+        let mut aig = Aig::from_file("aigs/counter_init11.aag").unwrap();
+        aig.symbolic_mc();
     }
 }
