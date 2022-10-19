@@ -132,7 +132,7 @@ impl Into<AigEdge> for AigNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AigEdge {
     id: AigNodeId,
     complement: bool,
@@ -233,7 +233,13 @@ impl Aig {
         nodeid
     }
 
-    pub fn new_and_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) -> AigEdge {
+    pub fn new_and_node(&mut self, mut fanin0: AigEdge, mut fanin1: AigEdge) -> AigEdge {
+        if fanin0.node_id() > fanin1.node_id() {
+            swap(&mut fanin0, &mut fanin1);
+        }
+        if let Some(id) = self.strash_map.get(&(fanin0, fanin1)) {
+            return AigEdge::new(*id, false);
+        }
         assert!(self.node_is_valid(fanin0.node_id()) && self.node_is_valid(fanin1.node_id()));
         if fanin0 == Aig::constant_edge(true) {
             return fanin1;
@@ -415,6 +421,7 @@ impl Aig {
         };
         ret.setup_levels();
         ret.setup_fanouts();
+        ret.setup_strash();
         Ok(ret)
     }
 }
@@ -482,9 +489,7 @@ impl Aig {
             let equal_node = self.new_equal_node(next, inode.into());
             equals.push(equal_node);
         }
-        let retedge = self.new_and_nodes(equals);
-        self.outputs.push(retedge);
-        (ret, retedge)
+        (ret, self.new_and_nodes(equals))
     }
 }
 

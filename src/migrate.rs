@@ -1,9 +1,13 @@
 use std::vec;
 
-use crate::{Aig, AigEdge, AigNode, AigNodeId};
+use crate::{Aig, AigEdge, AigNodeId};
 
 impl Aig {
-    pub fn migrate_logic(&mut self, nodes: &Vec<(AigNodeId, AigNodeId)>, logic: AigEdge) -> AigEdge {
+    pub fn migrate_logic(
+        &mut self,
+        nodes: &Vec<(AigNodeId, AigNodeId)>,
+        logic: AigEdge,
+    ) -> AigEdge {
         let mut flag = vec![false; self.num_nodes()];
         let mut map = vec![None; self.num_nodes()];
         flag[logic.node_id()] = true;
