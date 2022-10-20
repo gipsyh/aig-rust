@@ -288,6 +288,10 @@ impl Aig {
         self.nodes.len()
     }
 
+    // pub fn outputs(&self) -> &[AigEdge] {
+    //     &self.outputs
+    // }
+
     pub fn pinputs_iter(&self) -> Iter<AigNode> {
         todo!()
     }

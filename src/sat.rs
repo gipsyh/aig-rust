@@ -46,20 +46,20 @@ impl Aig {
     pub fn sat(&self, logic: AigEdge) -> bool {
         let cnf = self.cnf(logic);
         let sat = Certificate::try_from(cnf).unwrap();
-        dbg!(&sat);
         matches!(sat, Certificate::SAT(_))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Aig, AigEdge};
+    use crate::Aig;
     use splr::Certificate;
 
     #[test]
     fn test() {
         let aig = Aig::from_file("aigs/xor.aag").unwrap();
-        let cnf = aig.cnf(AigEdge::new(5, false));
+        let logic = aig.outputs[0];
+        let cnf = aig.cnf(logic);
         println!("{}", aig);
         println!("{:?}", cnf);
         let sat = Certificate::try_from(cnf).unwrap();
