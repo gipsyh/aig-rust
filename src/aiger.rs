@@ -124,3 +124,14 @@ impl Aig {
         Ok(ret)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Aig;
+
+    #[test]
+    fn test() {
+        let aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
+        println!("{}", aig);
+    }
+}

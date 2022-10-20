@@ -342,7 +342,12 @@ impl Aig {
     pub fn latch_init_equation(&mut self) -> AigEdge {
         let mut equals = Vec::new();
         let latchs = self.latchs.clone();
-        for AigLatch { input, next, init } in latchs {
+        for AigLatch {
+            input,
+            next: _,
+            init,
+        } in latchs
+        {
             let init_equal_node = self.new_equal_node((input).into(), Aig::constant_edge(init));
             equals.push(init_equal_node);
         }
@@ -384,16 +389,7 @@ impl Index<AigNodeId> for Aig {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BinaryHeap;
-
-    use crate::{Aig, AigEdge};
-    #[test]
-    fn test_from_file() {
-        let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
-        println!("{}", aig);
-        // aig.eliminate_input(1);
-        // println!("{}", aig);
-    }
+    use crate::Aig;
 
     #[test]
     fn setup_transition() {
@@ -402,13 +398,6 @@ mod tests {
         let reachable = aig.latch_init_equation();
         println!("{}", aig);
         let (_, equation) = aig.transfer_latch_outputs_into_pinputs();
-        let mut equation = aig.new_and_node(reachable, equation);
-        println!("{}", aig);
-        equation = aig.eliminate_input(1, vec![equation])[0];
-        equation = aig.eliminate_input(2, vec![equation])[0];
-        println!("{}", aig);
-        dbg!(equation);
-        let constraint = aig.migrate_logic(&vec![(7, 1), (11, 2)], AigEdge::new(40, false));
-        println!("{}", aig);
+        let _equation = aig.new_and_node(reachable, equation);
     }
 }

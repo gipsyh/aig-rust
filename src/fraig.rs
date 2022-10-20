@@ -1,4 +1,4 @@
-use crate::{simulate::AigSimulation, Aig};
+use crate::Aig;
 
 pub struct FraigParam {
     sim_nwords: usize,

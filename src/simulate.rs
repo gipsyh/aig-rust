@@ -1,7 +1,9 @@
-use std::ops::{BitAnd, Not};
-
 use crate::Aig;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
+use std::{
+    fmt::{Display, Formatter, Result},
+    ops::{BitAnd, Not},
+};
 
 type SimulationWord = usize;
 
@@ -10,7 +12,20 @@ pub struct SimulationWords {
     words: Vec<SimulationWord>,
 }
 
+impl Display for SimulationWords {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "{:0>64b}", self.words[0])
+    }
+}
+
 impl SimulationWords {
+    fn true_word(nwords: usize) -> Self {
+        let mut words = Vec::new();
+        for _ in 0..nwords {
+            words.push(usize::MAX);
+        }
+        Self { words }
+    }
     fn new(nwords: usize, gen: &mut RandomWordGenerator) -> Self {
         let mut words = Vec::new();
         for _ in 0..nwords {
@@ -60,43 +75,44 @@ impl RandomWordGenerator {
 }
 
 #[derive(Debug)]
-pub struct AigSimulation {
+pub struct Simulation {
     nwords: usize,
     simulations: Vec<SimulationWords>,
 }
 
-impl AigSimulation {
-    // pub fn new(aig: &Aig, nwords: usize) -> Self {
-    //     let mut rwg = RandomWordGenerator::new();
-    //     let mut simulations = Vec::new();
-    //     for _ in 0..aig.num_inputs() {
-    //         simulations.push(SimulationWords::new(nwords, &mut rwg));
-    //     }
-    //     for and in aig.ands_iter() {
-    //         dbg!(and.node_id());
-    //         let fanin0 = and.fanin0();
-    //         let fanin1 = and.fanin1();
-    //         assert!(simulations.len() == and.node_id());
-    //         let sim0 = if fanin0.compl() {
-    //             !simulations[fanin0.node_id()].clone()
-    //         } else {
-    //             simulations[fanin0.node_id()].clone()
-    //         };
-    //         let sim1 = if fanin1.compl() {
-    //             !simulations[fanin1.node_id()].clone()
-    //         } else {
-    //             simulations[fanin1.node_id()].clone()
-    //         };
-    //         simulations.push(sim0 & sim1);
-    //     }
-    //     Self {
-    //         nwords,
-    //         simulations,
-    //     }
-    // }
-
+impl Simulation {
     pub fn simulations(&self) -> &Vec<SimulationWords> {
         &self.simulations
+    }
+}
+
+impl Aig {
+    pub fn new_simulation(&self, nwords: usize) -> Simulation {
+        let mut rwg = RandomWordGenerator::new();
+        let mut simulations = vec![SimulationWords::true_word(nwords)];
+        for node in &self.nodes[1..] {
+            if node.is_and() {
+                let fanin0 = node.fanin0();
+                let fanin1 = node.fanin1();
+                let sim0 = if fanin0.compl() {
+                    !simulations[fanin0.node_id()].clone()
+                } else {
+                    simulations[fanin0.node_id()].clone()
+                };
+                let sim1 = if fanin1.compl() {
+                    !simulations[fanin1.node_id()].clone()
+                } else {
+                    simulations[fanin1.node_id()].clone()
+                };
+                simulations.push(sim0 & sim1);
+            } else {
+                simulations.push(SimulationWords::new(nwords, &mut rwg));
+            }
+        }
+        Simulation {
+            nwords,
+            simulations,
+        }
     }
 }
 
@@ -104,12 +120,13 @@ impl AigSimulation {
 mod tests {
     use crate::Aig;
 
-    use super::AigSimulation;
     #[test]
     fn test_simulation() {
-        let aig = Aig::from_file("aigs/counter.aag").unwrap();
-        dbg!(&aig);
-        // let sim = AigSimulation::new(&aig, 4);
-        // dbg!(&sim);
+        let aig = Aig::from_file("aigs/counter-2bit.aag").unwrap();
+        println!("{}", aig);
+        let sim = aig.new_simulation(1);
+        for s in sim.simulations {
+            println!("{:}", s);
+        }
     }
 }
