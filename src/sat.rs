@@ -44,8 +44,10 @@ impl Aig {
     }
 
     pub fn sat(&self, logic: AigEdge) -> bool {
+        println!("begin sat");
         let cnf = self.cnf(logic);
         let sat = Certificate::try_from(cnf).unwrap();
+        println!("end sat");
         matches!(sat, Certificate::SAT(_))
     }
 }

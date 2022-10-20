@@ -46,7 +46,7 @@ impl Aig {
 mod tests {
     use crate::Aig;
     #[test]
-    fn test_from_file() {
+    fn test() {
         let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
         println!("{}", aig);
         dbg!(aig.symbolic_mc());

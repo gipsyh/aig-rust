@@ -12,8 +12,8 @@ mod symbolic_mc;
 
 use std::{
     assert_matches::assert_matches,
-    collections::HashMap,
-    fmt::Display,
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
     mem::{swap, take},
     ops::{Index, Not},
     slice::Iter,
@@ -122,7 +122,7 @@ impl Into<AigEdge> for AigNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AigEdge {
     id: AigNodeId,
     complement: bool,
@@ -269,13 +269,19 @@ impl Aig {
         self.new_and_node(edge1, edge2)
     }
 
-    pub fn new_and_nodes(&mut self, nodes: Vec<AigEdge>) -> AigEdge {
-        assert!(nodes.len() > 1);
-        let mut ret = nodes[0];
-        for node in &nodes[1..] {
-            ret = self.new_and_node(ret, *node)
+    pub fn new_and_nodes(&mut self, edges: Vec<AigEdge>) -> AigEdge {
+        assert!(edges.len() > 1);
+        let mut heap = BinaryHeap::new();
+        for edge in edges {
+            heap.push(Reverse((self.nodes[edge.node_id()].level, edge)));
         }
-        ret
+        while heap.len() > 1 {
+            let peek0 = heap.pop().unwrap().0 .1;
+            let peek1 = heap.pop().unwrap().0 .1;
+            let new_node = self.new_and_node(peek0, peek1);
+            heap.push(Reverse((self.nodes[new_node.node_id()].level, new_node)));
+        }
+        heap.pop().unwrap().0 .1
     }
 
     pub fn add_output(&mut self, out: AigEdge) {
@@ -378,6 +384,8 @@ impl Index<AigNodeId> for Aig {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BinaryHeap;
+
     use crate::{Aig, AigEdge};
     #[test]
     fn test_from_file() {
@@ -402,12 +410,5 @@ mod tests {
         dbg!(equation);
         let constraint = aig.migrate_logic(&vec![(7, 1), (11, 2)], AigEdge::new(40, false));
         println!("{}", aig);
-    }
-
-    #[test]
-
-    fn symbolic_mc() {
-        let mut aig = Aig::from_file("aigs/counter_init11.aag").unwrap();
-        aig.symbolic_mc();
     }
 }
