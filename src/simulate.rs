@@ -7,7 +7,7 @@ use std::{
 
 type SimulationWord = usize;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct SimulationWords {
     words: Vec<SimulationWord>,
 }
@@ -76,7 +76,7 @@ impl RandomWordGenerator {
 
 #[derive(Debug)]
 pub struct Simulation {
-    nwords: usize,
+    _nwords: usize,
     simulations: Vec<SimulationWords>,
 }
 
@@ -110,7 +110,7 @@ impl Aig {
             }
         }
         Simulation {
-            nwords,
+            _nwords: nwords,
             simulations,
         }
     }

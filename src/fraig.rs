@@ -1,28 +1,23 @@
-use crate::Aig;
+use crate::{Aig, AigEdge};
+use std::collections::HashMap;
 
-pub struct FraigParam {
-    sim_nwords: usize,
-    sim_nrounds: usize,
-}
-
-impl Default for FraigParam {
-    fn default() -> Self {
-        Self {
-            sim_nwords: 4,
-            sim_nrounds: 4,
+impl Aig {
+    pub fn fraig(&mut self) {
+        let simulation = self.new_simulation(10);
+        let mut ec_map = HashMap::new();
+        for idx in self.nodes_range() {
+            match ec_map.get(&simulation.simulations()[idx]) {
+                Some(fenode) => {
+                    let x = AigEdge::new(idx, false);
+                    let y = AigEdge::new(*fenode, false);
+                    if self.equivalence_check(x, y) {
+                        self.replace_fe_node(idx, *fenode);
+                    }
+                }
+                None => {
+                    ec_map.insert(simulation.simulations()[idx].clone(), idx);
+                }
+            }
         }
-    }
-}
-
-pub struct FrAig {}
-
-impl FrAig {
-    fn do_fraig(aig: &mut Aig, param: FraigParam) {
-        for _ in 0..param.sim_nrounds {
-            // let map = HashMap::new();
-            // let sims = AigSimulation::new(aig, param.sim_nwords);
-            // for sim in sims.simulations() {}
-        }
-        todo!()
     }
 }

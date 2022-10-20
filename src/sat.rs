@@ -23,22 +23,25 @@ impl Aig {
         ]
     }
 
-    fn cnf(&self, logic: AigEdge) -> Vec<Vec<i32>> {
+    fn node_cnf(&self, node: AigNodeId) -> Vec<Vec<i32>> {
         let mut ret = Vec::new();
         let mut flag = vec![false; self.num_nodes()];
-        flag[logic.node_id()] = true;
+        flag[node] = true;
         for id in (0..self.num_nodes()).rev() {
-            if flag[id] {
-                if self.nodes[id].is_and() {
-                    flag[self.nodes[id].fanin0().node_id()] = true;
-                    flag[self.nodes[id].fanin1().node_id()] = true;
-                    let cnf = self.and_node_cnf(id);
-                    for clause in cnf {
-                        ret.push(clause)
-                    }
+            if flag[id] && self.nodes[id].is_and() {
+                flag[self.nodes[id].fanin0().node_id()] = true;
+                flag[self.nodes[id].fanin1().node_id()] = true;
+                let cnf = self.and_node_cnf(id);
+                for clause in cnf {
+                    ret.push(clause)
                 }
             }
         }
+        ret
+    }
+
+    fn cnf(&self, logic: AigEdge) -> Vec<Vec<i32>> {
+        let mut ret = self.node_cnf(logic.node_id());
         ret.push(vec![self.edge_to_i32(logic)]);
         ret
     }
@@ -49,6 +52,17 @@ impl Aig {
         let sat = Certificate::try_from(cnf).unwrap();
         println!("end sat");
         matches!(sat, Certificate::SAT(_))
+    }
+
+    pub fn equivalence_check(&self, x: AigEdge, y: AigEdge) -> bool {
+        let mut cnf = self.node_cnf(x.node_id());
+        cnf.append(&mut self.node_cnf(y.node_id()));
+        let x = self.edge_to_i32(x);
+        let y = self.edge_to_i32(y);
+        cnf.push(vec![x, y]);
+        cnf.push(vec![-x, -y]);
+        let sat = Certificate::try_from(cnf).unwrap();
+        !matches!(sat, Certificate::SAT(_))
     }
 }
 

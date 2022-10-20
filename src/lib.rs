@@ -15,7 +15,7 @@ use std::{
     cmp::Reverse,
     collections::{BinaryHeap, HashMap},
     mem::{swap, take},
-    ops::{Index, Not},
+    ops::{Index, Not, Range},
     slice::Iter,
     vec,
 };
@@ -46,15 +46,15 @@ pub struct AigNode {
 }
 
 impl AigNode {
-    pub fn node_id(&self) -> AigNodeId {
+    fn node_id(&self) -> AigNodeId {
         self.id
     }
 
-    pub fn is_and(&self) -> bool {
+    fn is_and(&self) -> bool {
         matches!(self.typ, AigNodeType::And(_, _))
     }
 
-    pub fn fanin0(&self) -> AigEdge {
+    fn fanin0(&self) -> AigEdge {
         if let AigNodeType::And(ret, _) = self.typ {
             ret
         } else {
@@ -62,9 +62,25 @@ impl AigNode {
         }
     }
 
-    pub fn fanin1(&self) -> AigEdge {
+    fn fanin1(&self) -> AigEdge {
         if let AigNodeType::And(_, ret) = self.typ {
             ret
+        } else {
+            panic!();
+        }
+    }
+
+    fn set_fanin0(&mut self, fanin: AigEdge) {
+        if let AigNodeType::And(fanin0, _) = &mut self.typ {
+            *fanin0 = fanin
+        } else {
+            panic!();
+        }
+    }
+
+    fn set_fanin1(&mut self, fanin: AigEdge) {
+        if let AigNodeType::And(_, fanin1) = &mut self.typ {
+            *fanin1 = fanin
         } else {
             panic!();
         }
@@ -113,6 +129,12 @@ impl AigNode {
             fanouts: Vec::new(),
             level,
         }
+    }
+}
+
+impl AigNode {
+    fn strash_key(&self) -> (AigEdge, AigEdge) {
+        (self.fanin0(), self.fanin1())
     }
 }
 
@@ -184,10 +206,6 @@ impl Aig {
             complement: !polarity,
         }
     }
-
-    fn node_is_valid(&self, node: AigNodeId) -> bool {
-        self.nodes.len() > node
-    }
 }
 
 impl Aig {
@@ -221,7 +239,6 @@ impl Aig {
         if let Some(id) = self.strash_map.get(&(fanin0, fanin1)) {
             return AigEdge::new(*id, false);
         }
-        assert!(self.node_is_valid(fanin0.node_id()) && self.node_is_valid(fanin1.node_id()));
         if fanin0 == Aig::constant_edge(true) {
             return fanin1;
         }
@@ -287,11 +304,52 @@ impl Aig {
     pub fn add_output(&mut self, out: AigEdge) {
         self.outputs.push(out)
     }
+
+    pub fn replace_fe_node(&mut self, replaced: AigNodeId, by: AigNodeId) {
+        assert!(replaced > by);
+        let fanouts = take(&mut self.nodes[replaced].fanouts);
+        for fanout in fanouts {
+            let fanout_node_id = fanout.node_id();
+            let fanout_node = &mut self.nodes[fanout_node_id];
+            self.strash_map.remove(&fanout_node.strash_key()).unwrap();
+            let mut fanin0 = fanout_node.fanin0();
+            let mut fanin1 = fanout_node.fanin1();
+            assert!(fanin0.node_id() < fanin1.node_id());
+            if fanin0.node_id() == replaced {
+                assert_eq!(fanout.compl(), fanin0.compl());
+                fanin0 = AigEdge::new(by, fanout.compl());
+            }
+            if fanin1.node_id() == replaced {
+                assert_eq!(fanout.compl(), fanin1.compl());
+                fanin1 = AigEdge::new(by, fanout.compl());
+            }
+            if fanin0.node_id() > fanin1.node_id() {
+                swap(&mut fanin0, &mut fanin1);
+            }
+            fanout_node.set_fanin0(fanin0);
+            fanout_node.set_fanin1(fanin1);
+            self.nodes[fanout_node_id].level = self.nodes[fanin0.node_id()]
+                .level
+                .max(self.nodes[fanin1.node_id()].level)
+                + 1;
+            let strash_key = self.nodes[fanout_node_id].strash_key();
+            match self.strash_map.get(&strash_key) {
+                Some(_) => todo!(),
+                None => {
+                    assert!(self.strash_map.insert(strash_key, fanout_node_id).is_none());
+                }
+            }
+        }
+    }
 }
 
 impl Aig {
     pub fn num_nodes(&self) -> usize {
         self.nodes.len()
+    }
+
+    pub fn nodes_range(&self) -> Range<usize> {
+        1..self.num_nodes()
     }
 
     // pub fn outputs(&self) -> &[AigEdge] {
@@ -327,11 +385,9 @@ impl Aig {
         let mut flag = vec![false; self.num_nodes()];
         flag[logic.node_id()] = true;
         for id in (0..self.num_nodes()).rev() {
-            if flag[id] {
-                if self.nodes[id].is_and() {
-                    flag[self.nodes[id].fanin0().node_id()] = true;
-                    flag[self.nodes[id].fanin1().node_id()] = true;
-                }
+            if flag[id] && self.nodes[id].is_and() {
+                flag[self.nodes[id].fanin0().node_id()] = true;
+                flag[self.nodes[id].fanin1().node_id()] = true;
             }
         }
         flag
@@ -399,5 +455,13 @@ mod tests {
         println!("{}", aig);
         let (_, equation) = aig.transfer_latch_outputs_into_pinputs();
         let _equation = aig.new_and_node(reachable, equation);
+    }
+
+    #[test]
+    fn test_replace_node() {
+        let mut aig = Aig::from_file("aigs/xor.aag").unwrap();
+        println!("{}", aig);
+        aig.fraig();
+        println!("{}", aig);
     }
 }
