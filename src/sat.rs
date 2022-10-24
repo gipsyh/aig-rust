@@ -22,10 +22,12 @@ impl SatSolver {
 }
 
 impl SatSolver {
-    pub fn equivalence_check(&mut self, x: AigEdge, y: AigEdge) -> Option<Vec<bool>> {
-        let x = self.edge_to_lit(x);
-        let y = self.edge_to_lit(y);
-        match self.solver.solve_under_assumptions([x, !y]) {
+    pub fn solve_under_assumptions<I: IntoIterator<Item = AigEdge>>(
+        &mut self,
+        edges: I,
+    ) -> Option<Vec<bool>> {
+        let lits: Vec<Bool> = edges.into_iter().map(|e| self.edge_to_lit(e)).collect();
+        match self.solver.solve_under_assumptions(lits) {
             Ok(m) => {
                 let mut ret = Vec::new();
                 for var in &self.vars[1..] {
@@ -33,17 +35,35 @@ impl SatSolver {
                 }
                 Some(ret)
             }
-            Err(()) => match self.solver.solve_under_assumptions([!x, y]) {
-                Ok(m) => {
-                    let mut ret = Vec::new();
-                    for var in &self.vars[1..] {
-                        ret.push(m.value(var))
-                    }
-                    Some(ret)
-                }
-                Err(()) => None,
-            },
+            Err(()) => None,
         }
+    }
+
+    pub fn equivalence_check(&mut self, x: AigEdge, y: AigEdge) -> Option<Vec<bool>> {
+        match self.solve_under_assumptions([x, !y]) {
+            Some(ret) => Some(ret),
+            None => self.solve_under_assumptions([!x, y]),
+        }
+    }
+}
+
+impl SatSolver {
+    pub fn num_nodes(&self) -> usize {
+        self.vars.len()
+    }
+
+    pub fn new_input_node(&mut self) {
+        self.vars.push(self.solver.new_lit());
+    }
+
+    pub fn new_node(&mut self, fanin0: AigEdge, fanin1: AigEdge) {
+        let node = self.solver.new_lit();
+        let fanin0 = self.edge_to_lit(fanin0);
+        let fanin1 = self.edge_to_lit(fanin1);
+        self.solver.add_clause([!fanin0, !fanin1, node]);
+        self.solver.add_clause([fanin0, !node]);
+        self.solver.add_clause([fanin1, !node]);
+        self.vars.push(node);
     }
 }
 

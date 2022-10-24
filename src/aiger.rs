@@ -117,6 +117,7 @@ impl Aig {
             num_latchs: header.l,
             num_ands: header.a,
             strash_map: HashMap::new(),
+            fraig: None,
             sat_solver: SatSolver::default(),
         };
         ret.setup_levels();

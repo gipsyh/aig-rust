@@ -2,7 +2,6 @@ use crate::Aig;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
-    mem::MaybeUninit,
     ops::{BitAnd, Not},
     vec,
 };
@@ -97,30 +96,11 @@ impl Simulation {
         for i in 0..self.simulations.len() {
             self.simulations[i].append(&mut other.simulations[i])
         }
+        self.nwords += other.nwords
     }
 }
 
 impl Aig {
-    fn simulate(&self, remaining: &mut [MaybeUninit<SimulationWords>]) {
-        for node in &self.nodes {
-            if node.is_and() {
-                let fanin0 = node.fanin0();
-                let fanin1 = node.fanin1();
-                let sim0 = if fanin0.compl() {
-                    !unsafe { remaining[fanin0.node_id()].assume_init_read() }.clone()
-                } else {
-                    unsafe { remaining[fanin0.node_id()].assume_init_read() }.clone()
-                };
-                let sim1 = if fanin1.compl() {
-                    !unsafe { remaining[fanin1.node_id()].assume_init_read() }.clone()
-                } else {
-                    unsafe { remaining[fanin1.node_id()].assume_init_read() }.clone()
-                };
-                remaining[node.node_id()].write(sim0 & sim1);
-            }
-        }
-    }
-
     pub fn new_simulation(&self, nwords: usize) -> Simulation {
         let mut rwg = RandomWordGenerator::new();
         let mut simulations = vec![SimulationWords::true_word(nwords)];

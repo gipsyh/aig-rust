@@ -19,12 +19,14 @@ impl Aig {
             deep += 1;
             dbg!(deep);
             dbg!(self.num_nodes());
-            let bad_check = self.new_and_node(bad, reach);
-            // if self.sat(bad_check).is_some() {
-            //     dbg!(deep);
-            //     return false;
-            // }
-            todo!();
+            if self
+                .sat_solver
+                .solve_under_assumptions([bad, reach])
+                .is_some()
+            {
+                dbg!(deep);
+                return false;
+            }
             let mut equation = self.new_and_node(reach, transition);
             for iid in &inputs {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
@@ -32,14 +34,16 @@ impl Aig {
             }
             equation = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, equation);
-            let reach_increment_check = self.new_and_node(reach_new, !reach);
-            todo!()
-            // if self.sat(reach_increment_check).is_some() {
-            //     reach = reach_new
-            // } else {
-            //     dbg!(deep);
-            //     return true;
-            // }
+            if self
+                .sat_solver
+                .solve_under_assumptions([reach_new, !reach])
+                .is_some()
+            {
+                reach = reach_new
+            } else {
+                dbg!(deep);
+                return true;
+            }
         }
     }
 }
@@ -49,7 +53,7 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test() {
-        let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
+        let mut aig = Aig::from_file("aigs/counter-2bit.aag").unwrap();
         println!("{}", aig);
         dbg!(aig.symbolic_mc());
     }

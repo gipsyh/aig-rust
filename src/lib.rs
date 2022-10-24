@@ -20,6 +20,7 @@ use std::{
     vec,
 };
 
+use fraig::FrAig;
 use sat::SatSolver;
 
 type AigNodeId = usize;
@@ -203,6 +204,7 @@ pub struct Aig {
     num_latchs: usize,
     num_ands: usize,
     strash_map: HashMap<(AigEdge, AigEdge), AigNodeId>,
+    fraig: Option<FrAig>,
     sat_solver: SatSolver,
 }
 
@@ -236,6 +238,7 @@ impl Aig {
         self.nodes.push(input);
         self.cinputs.push(nodeid);
         self.num_inputs += 1;
+        self.sat_solver.new_input_node();
         nodeid
     }
 
@@ -277,6 +280,7 @@ impl Aig {
             self.nodes[fanin1.id]
                 .fanouts
                 .push(AigEdge::new(nodeid, fanin1.compl()));
+            self.sat_solver.new_node(fanin0, fanin1);
             nodeid.into()
         }
     }
@@ -312,7 +316,7 @@ impl Aig {
         self.outputs.push(out)
     }
 
-    pub fn replace_fe_node(&mut self, replaced: AigNodeId, by: AigNodeId) {
+    pub fn merge_fe_node(&mut self, replaced: AigNodeId, by: AigNodeId) {
         assert!(replaced > by);
         let fanouts = take(&mut self.nodes[replaced].fanouts);
         for fanout in fanouts {
@@ -357,6 +361,10 @@ impl Aig {
 
     pub fn nodes_range(&self) -> Range<usize> {
         1..self.num_nodes()
+    }
+
+    pub fn nodes_range_with_true(&self) -> Range<usize> {
+        0..self.num_nodes()
     }
 
     pub fn pinputs_iter(&self) -> Iter<AigNode> {
