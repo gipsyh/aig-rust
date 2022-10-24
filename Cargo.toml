@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 aiger = { path = "../aiger-rust" }
 rand = "0.8.5"
-splr = "0.16.3"
+minisat = "0.4.4"

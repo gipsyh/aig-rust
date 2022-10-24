@@ -20,10 +20,11 @@ impl Aig {
             dbg!(deep);
             dbg!(self.num_nodes());
             let bad_check = self.new_and_node(bad, reach);
-            if self.sat(bad_check) {
-                dbg!(deep);
-                return false;
-            }
+            // if self.sat(bad_check).is_some() {
+            //     dbg!(deep);
+            //     return false;
+            // }
+            todo!();
             let mut equation = self.new_and_node(reach, transition);
             for iid in &inputs {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
@@ -32,12 +33,13 @@ impl Aig {
             equation = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, equation);
             let reach_increment_check = self.new_and_node(reach_new, !reach);
-            if self.sat(reach_increment_check) {
-                reach = reach_new
-            } else {
-                dbg!(deep);
-                return true;
-            }
+            todo!()
+            // if self.sat(reach_increment_check).is_some() {
+            //     reach = reach_new
+            // } else {
+            //     dbg!(deep);
+            //     return true;
+            // }
         }
     }
 }

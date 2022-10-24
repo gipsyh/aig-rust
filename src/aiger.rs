@@ -1,4 +1,4 @@
-use crate::{Aig, AigEdge, AigLatch, AigNode};
+use crate::{sat::SatSolver, Aig, AigEdge, AigLatch, AigNode};
 use std::{collections::HashMap, io, mem::take, path::Path};
 
 impl Aig {
@@ -117,10 +117,12 @@ impl Aig {
             num_latchs: header.l,
             num_ands: header.a,
             strash_map: HashMap::new(),
+            sat_solver: SatSolver::default(),
         };
         ret.setup_levels();
         ret.setup_fanouts();
         ret.setup_strash();
+        ret.setup_sat_solver();
         Ok(ret)
     }
 }

@@ -20,6 +20,8 @@ use std::{
     vec,
 };
 
+use sat::SatSolver;
+
 type AigNodeId = usize;
 
 impl Into<AigEdge> for AigNodeId {
@@ -52,6 +54,10 @@ impl AigNode {
 
     fn is_and(&self) -> bool {
         matches!(self.typ, AigNodeType::And(_, _))
+    }
+
+    fn is_cinput(&self) -> bool {
+        matches!(self.typ, AigNodeType::LatchInput | AigNodeType::PrimeInput)
     }
 
     fn fanin0(&self) -> AigEdge {
@@ -197,6 +203,7 @@ pub struct Aig {
     num_latchs: usize,
     num_ands: usize,
     strash_map: HashMap<(AigEdge, AigEdge), AigNodeId>,
+    sat_solver: SatSolver,
 }
 
 impl Aig {
@@ -352,10 +359,6 @@ impl Aig {
         1..self.num_nodes()
     }
 
-    // pub fn outputs(&self) -> &[AigEdge] {
-    //     &self.outputs
-    // }
-
     pub fn pinputs_iter(&self) -> Iter<AigNode> {
         todo!()
     }
@@ -459,9 +462,8 @@ mod tests {
 
     #[test]
     fn test_replace_node() {
-        let mut aig = Aig::from_file("aigs/xor.aag").unwrap();
+        let mut aig = Aig::from_file("aigs/i10.aag").unwrap();
         println!("{}", aig);
         aig.fraig();
-        println!("{}", aig);
     }
 }
