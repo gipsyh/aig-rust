@@ -45,6 +45,21 @@ impl SatSolver {
             None => self.solve_under_assumptions([!x, y]),
         }
     }
+
+    pub fn equivalence_check_xy_z(
+        &mut self,
+        x: AigEdge,
+        y: AigEdge,
+        z: AigEdge,
+    ) -> Option<Vec<bool>> {
+        if let Some(ret) = self.solve_under_assumptions([x, y, !z]) {
+            return Some(ret);
+        }
+        if let Some(ret) = self.solve_under_assumptions([!x, z]) {
+            return Some(ret);
+        }
+        self.solve_under_assumptions([!y, z])
+    }
 }
 
 impl SatSolver {
@@ -135,7 +150,7 @@ impl Aig {
 
 #[cfg(test)]
 mod tests {
-    use crate::Aig;
+    use crate::{Aig, AigEdge};
 
     #[test]
     fn test_cec1() {
@@ -155,6 +170,15 @@ mod tests {
         assert!(aig
             .sat_solver
             .equivalence_check(aig.outputs[0], aig.outputs[1])
+            .is_none());
+    }
+
+    #[test]
+    fn test_cec_xy_z() {
+        let mut aig = Aig::from_file("aigs/cec1.aag").unwrap();
+        assert!(aig
+            .sat_solver
+            .equivalence_check_xy_z(AigEdge::new(4, true), 2.into(), 2.into())
             .is_none());
     }
 }

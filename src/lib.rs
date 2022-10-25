@@ -235,6 +235,9 @@ impl Aig {
     pub fn new_input_node(&mut self) -> AigNodeId {
         let nodeid = self.nodes.len();
         let input = AigNode::new_prime_input(nodeid);
+        if let Some(fraig) = &mut self.fraig {
+            fraig.new_input_node(nodeid);
+        }
         self.nodes.push(input);
         self.cinputs.push(nodeid);
         self.num_inputs += 1;
@@ -267,6 +270,14 @@ impl Aig {
             Aig::constant_edge(false)
         } else {
             let nodeid = self.nodes.len();
+            if let Some(fraig) = &mut self.fraig {
+                let and_edge = fraig.new_and_node(&mut self.sat_solver, fanin0, fanin1, nodeid);
+                if and_edge.node_id() != nodeid {
+                    return and_edge;
+                } else {
+                    assert!(!and_edge.compl());
+                }
+            }
             let level = self.nodes[fanin0.node_id()]
                 .level
                 .max(self.nodes[fanin1.node_id()].level)
@@ -316,7 +327,10 @@ impl Aig {
         self.outputs.push(out)
     }
 
-    pub fn merge_fe_node(&mut self, replaced: AigNodeId, by: AigNodeId) {
+    pub fn merge_fe_node(&mut self, replaced: AigEdge, by: AigEdge) {
+        let compl = replaced.compl() != by.compl();
+        let replaced = replaced.node_id();
+        let by = by.node_id();
         assert!(replaced > by);
         let fanouts = take(&mut self.nodes[replaced].fanouts);
         for fanout in fanouts {
@@ -328,11 +342,11 @@ impl Aig {
             assert!(fanin0.node_id() < fanin1.node_id());
             if fanin0.node_id() == replaced {
                 assert_eq!(fanout.compl(), fanin0.compl());
-                fanin0 = AigEdge::new(by, fanout.compl());
+                fanin0 = AigEdge::new(by, fanout.compl() ^ compl);
             }
             if fanin1.node_id() == replaced {
                 assert_eq!(fanout.compl(), fanin1.compl());
-                fanin1 = AigEdge::new(by, fanout.compl());
+                fanin1 = AigEdge::new(by, fanout.compl() ^ compl);
             }
             if fanin0.node_id() > fanin1.node_id() {
                 swap(&mut fanin0, &mut fanin1);
@@ -343,6 +357,7 @@ impl Aig {
                 .level
                 .max(self.nodes[fanin1.node_id()].level)
                 + 1;
+            self.nodes[by].fanouts.push(fanout);
             let strash_key = self.nodes[fanout_node_id].strash_key();
             match self.strash_map.get(&strash_key) {
                 Some(_) => todo!(),

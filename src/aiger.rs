@@ -124,6 +124,7 @@ impl Aig {
         ret.setup_fanouts();
         ret.setup_strash();
         ret.setup_sat_solver();
+        ret.fraig();
         Ok(ret)
     }
 }

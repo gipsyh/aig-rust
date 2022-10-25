@@ -1,4 +1,4 @@
-use crate::Aig;
+use crate::{Aig, AigEdge};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
@@ -28,12 +28,17 @@ impl SimulationWords {
         Self { words }
     }
 
-    fn new(nwords: usize, gen: &mut RandomWordGenerator) -> Self {
+    pub fn new(nwords: usize) -> Self {
+        let mut gen = RandomWordGenerator::new();
         let mut words = Vec::new();
         for _ in 0..nwords {
             words.push(gen.rand_word());
         }
         Self { words }
+    }
+
+    fn push(&mut self, word: SimulationWord) {
+        self.words.push(word)
     }
 
     fn append(&mut self, other: &mut Self) {
@@ -87,6 +92,18 @@ pub struct Simulation {
 }
 
 impl Simulation {
+    pub fn nwords(&self) -> usize {
+        self.nwords
+    }
+
+    pub fn sim_value(&self, e: AigEdge) -> SimulationWords {
+        if e.compl() {
+            !self.simulations[e.node_id()].clone()
+        } else {
+            self.simulations[e.node_id()].clone()
+        }
+    }
+
     pub fn simulations(&self) -> &Vec<SimulationWords> {
         &self.simulations
     }
@@ -98,11 +115,27 @@ impl Simulation {
         }
         self.nwords += other.nwords
     }
+
+    pub fn add_pattern(&mut self, pattern: Vec<bool>) {
+        assert_eq!(pattern.len() + 1, self.simulations.len());
+        self.nwords += 1;
+        self.simulations[0].push(SimulationWord::MAX - 1);
+        for i in 1..self.simulations.len() {
+            if pattern[i - 1] {
+                self.simulations[i].push(SimulationWord::MAX - 1)
+            } else {
+                self.simulations[i].push(0)
+            }
+        }
+    }
+
+    pub fn add_node(&mut self, sim: SimulationWords) {
+        self.simulations.push(sim)
+    }
 }
 
 impl Aig {
     pub fn new_simulation(&self, nwords: usize) -> Simulation {
-        let mut rwg = RandomWordGenerator::new();
         let mut simulations = vec![SimulationWords::true_word(nwords)];
         for node in &self.nodes[1..] {
             if node.is_and() {
@@ -120,29 +153,13 @@ impl Aig {
                 };
                 simulations.push(sim0 & sim1);
             } else {
-                simulations.push(SimulationWords::new(nwords, &mut rwg));
+                simulations.push(SimulationWords::new(nwords));
             }
         }
         Simulation {
             nwords,
             simulations,
         }
-    }
-
-    fn new_simulation_with_pattern(&self, pattern: Vec<bool>) -> Simulation {
-        let mut simulation = self.new_simulation(1);
-        for i in self.nodes_range() {
-            simulation.simulations[i].words[0] &= SimulationWord::MAX - 1;
-            if pattern[i - 1] {
-                simulation.simulations[i].words[0] |= 1;
-            }
-        }
-        simulation
-    }
-
-    pub fn simulation_add_pattern(&self, simulation: &mut Simulation, pattern: Vec<bool>) {
-        let mut new_simulation = self.new_simulation_with_pattern(pattern);
-        simulation.merge(&mut new_simulation);
     }
 }
 

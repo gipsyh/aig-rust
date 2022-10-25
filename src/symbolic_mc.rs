@@ -19,6 +19,7 @@ impl Aig {
             deep += 1;
             dbg!(deep);
             dbg!(self.num_nodes());
+            // self.fraig();
             if self
                 .sat_solver
                 .solve_under_assumptions([bad, reach])
@@ -53,7 +54,17 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test() {
-        let mut aig = Aig::from_file("aigs/counter-2bit.aag").unwrap();
+        let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
+        println!("{}", aig);
+        dbg!(aig.symbolic_mc());
+    }
+
+    #[test]
+    fn test2() {
+        let mut aig = Aig::from_file(
+            "/root/MC-Benchmark/hwmcc20/aig/2019/beem/anderson.3.prop1-back-serstep.aag",
+        )
+        .unwrap();
         println!("{}", aig);
         dbg!(aig.symbolic_mc());
     }
