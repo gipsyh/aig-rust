@@ -1,4 +1,5 @@
 #![feature(assert_matches)]
+#![feature(unchecked_math)]
 
 mod aiger;
 mod display;
