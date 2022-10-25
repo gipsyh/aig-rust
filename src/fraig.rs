@@ -31,6 +31,7 @@ impl FrAig {
     }
 
     fn add_new_node(&mut self, sim: SimulationWords, edge: AigEdge) {
+        self.simulation.add_node(sim.clone());
         assert!(self.sim_map.insert(sim, vec![edge]).is_none());
     }
 
@@ -73,8 +74,7 @@ impl FrAig {
                     None => !c[0],
                 },
                 None => {
-                    self.simulation.add_node(sim.clone());
-                    self.sim_map.insert(sim, vec![new_node.into()]);
+                    self.add_new_node(sim, new_node.into());
                     new_node.into()
                 }
             },

@@ -360,7 +360,7 @@ impl Aig {
             self.nodes[by].fanouts.push(fanout);
             let strash_key = self.nodes[fanout_node_id].strash_key();
             match self.strash_map.get(&strash_key) {
-                Some(_) => todo!(),
+                Some(_) => {}
                 None => {
                     assert!(self.strash_map.insert(strash_key, fanout_node_id).is_none());
                 }

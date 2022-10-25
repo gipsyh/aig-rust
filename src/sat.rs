@@ -63,10 +63,6 @@ impl SatSolver {
 }
 
 impl SatSolver {
-    pub fn num_nodes(&self) -> usize {
-        self.vars.len()
-    }
-
     pub fn new_input_node(&mut self) {
         self.vars.push(self.solver.new_lit());
     }

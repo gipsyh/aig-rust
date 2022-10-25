@@ -19,7 +19,6 @@ impl Aig {
             deep += 1;
             dbg!(deep);
             dbg!(self.num_nodes());
-            // self.fraig();
             if self
                 .sat_solver
                 .solve_under_assumptions([bad, reach])
@@ -32,6 +31,7 @@ impl Aig {
             for iid in &inputs {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
                 equation = self.eliminate_input(*iid, vec![equation])[0];
+                dbg!(self.num_nodes());
             }
             equation = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, equation);
@@ -56,15 +56,18 @@ mod tests {
     fn test() {
         let mut aig = Aig::from_file("aigs/counter-3bit.aag").unwrap();
         println!("{}", aig);
+        aig.fraig();
         dbg!(aig.symbolic_mc());
     }
 
     #[test]
     fn test2() {
         let mut aig = Aig::from_file(
-            "/root/MC-Benchmark/hwmcc20/aig/2019/beem/anderson.3.prop1-back-serstep.aag",
+            "/root/MC-Benchmark/hwmcc20/aig/2019/goel/crafted/paper_v3/paper_v3.aag",
         )
         .unwrap();
+        println!("{}", aig);
+        aig.fraig();
         println!("{}", aig);
         dbg!(aig.symbolic_mc());
     }

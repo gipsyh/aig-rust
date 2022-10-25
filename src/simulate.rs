@@ -2,16 +2,24 @@ use crate::{Aig, AigEdge};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
+    hash::{Hash, Hasher},
     ops::{BitAnd, Not},
     vec,
 };
 
 type SimulationWord = usize;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SimulationWords {
+    // hash: u128,
     words: Vec<SimulationWord>,
 }
+
+// impl Hash for SimulationWords {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.words.hash(state);
+//     }
+// }
 
 impl Display for SimulationWords {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -39,10 +47,6 @@ impl SimulationWords {
 
     fn push(&mut self, word: SimulationWord) {
         self.words.push(word)
-    }
-
-    fn append(&mut self, other: &mut Self) {
-        self.words.append(&mut other.words);
     }
 }
 
@@ -92,6 +96,10 @@ pub struct Simulation {
 }
 
 impl Simulation {
+    pub fn num_nodes(&self) -> usize {
+        self.simulations.len()
+    }
+
     pub fn nwords(&self) -> usize {
         self.nwords
     }
@@ -108,21 +116,13 @@ impl Simulation {
         &self.simulations
     }
 
-    fn merge(&mut self, other: &mut Self) {
-        assert!(self.simulations.len() == other.simulations.len());
-        for i in 0..self.simulations.len() {
-            self.simulations[i].append(&mut other.simulations[i])
-        }
-        self.nwords += other.nwords
-    }
-
     pub fn add_pattern(&mut self, pattern: Vec<bool>) {
         assert_eq!(pattern.len() + 1, self.simulations.len());
         self.nwords += 1;
-        self.simulations[0].push(SimulationWord::MAX - 1);
+        self.simulations[0].push(SimulationWord::MAX);
         for i in 1..self.simulations.len() {
             if pattern[i - 1] {
-                self.simulations[i].push(SimulationWord::MAX - 1)
+                self.simulations[i].push(SimulationWord::MAX)
             } else {
                 self.simulations[i].push(0)
             }
