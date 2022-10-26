@@ -3,7 +3,7 @@ use crate::{
     simulate::{Simulation, SimulationWords, SimulationWordsHash},
     Aig, AigEdge, AigNodeId,
 };
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, mem::take, vec};
 
 #[derive(Debug)]
 pub struct FrAig {
@@ -13,21 +13,38 @@ pub struct FrAig {
 
 impl FrAig {
     fn add_pattern(&mut self, pattern: Vec<bool>) {
+        let old_map = take(&mut self.sim_map);
+        // let mut old_keys = Vec::new();
+        // for v in old_map.values() {
+        //     for key in &old_keys {
+        //         assert_ne!(*key, self.simulation.hash_value(v[0]));
+        //     }
+        //     old_keys.push(self.simulation.hash_value(v[0]));
+        // }
         self.simulation.add_pattern(pattern);
-        let mut new_map: HashMap<SimulationWordsHash, Vec<AigEdge>> = HashMap::new();
-        for v in self.sim_map.values() {
-            for e in v {
-                let key = self.simulation.hash_value(*e);
-                match new_map.get_mut(&key) {
-                    Some(ev) => ev.push(*e),
-                    None => {
-                        assert!(!new_map.contains_key(&!key));
-                        new_map.insert(key, vec![*e]);
-                    }
-                }
-            }
+        // let mut keys: Vec<(u128, AigEdge)> = Vec::new();
+        // let mut ttt = 0;
+        // for v in old_map.values() {
+        //     for i in 0..keys.len() {
+        //         if keys[i].0 == self.simulation.hash_value(v[0]) {
+        //             dbg!(keys[i]);
+        //             dbg!(self.simulation.hash_value(v[0]));
+        //             dbg!(old_keys[i]);
+        //             dbg!(old_keys[ttt]);
+        //             dbg!(&self.simulation.simulations()[v[0].node_id()]);
+        //             dbg!(&self.simulation.simulations()[keys[i].1.node_id()]);
+        //             panic!();
+        //         }
+        //     }
+        //     ttt += 1;
+        //     keys.push((self.simulation.hash_value(v[0]), v[0]));
+        // }
+        for (_, c) in old_map {
+            assert!(self
+                .sim_map
+                .insert(self.simulation.hash_value(c[0]), c)
+                .is_none());
         }
-        self.sim_map = new_map;
     }
 
     fn add_new_node(&mut self, sim: SimulationWords, edge: AigEdge) {
@@ -40,7 +57,10 @@ impl FrAig {
         while self.sim_map.contains_key(&sim.hash_value()) {
             sim = SimulationWords::new(self.simulation.nbit());
         }
-        self.sim_map.insert(sim.hash_value(), vec![node.into()]);
+        assert!(self
+            .sim_map
+            .insert(sim.hash_value(), vec![node.into()])
+            .is_none());
         self.simulation.add_node(sim);
     }
 
@@ -57,6 +77,7 @@ impl FrAig {
                 Some(p) => {
                     self.add_pattern(p);
                     let sim = self.simulation.sim_value(fanin0) & self.simulation.sim_value(fanin1);
+                    assert!(!self.sim_map.contains_key(&sim.hash_value()));
                     self.add_new_node(sim, new_node.into());
                     new_node.into()
                 }
@@ -112,7 +133,6 @@ impl Aig {
         let mut simulation = self.new_simulation(10000);
         loop {
             let candidates = self.get_candidate(&simulation);
-            dbg!(&candidates.len());
             let mut update = false;
             for candidate in candidates.values() {
                 if candidate.len() == 1 {
@@ -127,11 +147,14 @@ impl Aig {
                 }
             }
             if !update {
-                for candidate in candidates.values() {
+                for (k, candidate) in &candidates {
+                    assert_eq!(*k, simulation.hash_value(candidate[0]));
                     for c in &candidate[1..] {
+                        assert_eq!(*k, simulation.hash_value(*c));
                         self.merge_fe_node(*c, candidate[0]);
                     }
                 }
+
                 self.fraig = Some(FrAig {
                     simulation,
                     sim_map: candidates,

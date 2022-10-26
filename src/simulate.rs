@@ -6,11 +6,11 @@ use std::{
     vec,
 };
 
-type SimulationWord = u128;
+type SimulationWord = u16;
 
-pub type SimulationWordsHash = SimulationWord;
+pub type SimulationWordsHash = u128;
 
-const HASH_MUL: SimulationWordsHash = 131;
+const HASH_MUL: SimulationWordsHash = 1000000007;
 
 #[derive(Clone, Debug)]
 pub struct SimulationWords {
@@ -24,8 +24,8 @@ impl SimulationWords {
         let mut ret: SimulationWordsHash = 0;
         for word in bits {
             ret = unsafe {
-                ret.unchecked_mul(HASH_MUL as SimulationWord)
-                    .unchecked_add(*word)
+                ret.unchecked_mul(HASH_MUL as SimulationWordsHash)
+                    .unchecked_add(*word as SimulationWordsHash)
             };
         }
         ret
@@ -44,7 +44,6 @@ impl SimulationWords {
         } else {
             words.push(SimulationWord::MAX >> nbit_remain);
         }
-        dbg!(nbit_remain);
         let hash = SimulationWords::calculate_hash(&words);
         Self {
             words,
@@ -90,16 +89,16 @@ impl SimulationWords {
             let word = bit as SimulationWord;
             self.hash = unsafe {
                 self.hash
-                    .unchecked_mul(HASH_MUL as SimulationWord)
-                    .unchecked_add(word)
+                    .unchecked_mul(HASH_MUL as SimulationWordsHash)
+                    .unchecked_add(word as SimulationWordsHash)
             };
             self.words.push(word);
             self.nbit_remain = SimulationWord::BITS as usize - 1;
         } else {
             let last = self.words.pop().unwrap();
-            self.hash = unsafe { self.hash.unchecked_sub(last) };
+            self.hash = unsafe { self.hash.unchecked_sub(last as SimulationWordsHash) };
             let last = (last << 1) + bit as SimulationWord;
-            self.hash = unsafe { self.hash.unchecked_add(last) };
+            self.hash = unsafe { self.hash.unchecked_add(last as SimulationWordsHash) };
             self.words.push(last);
             self.nbit_remain -= 1;
         }
@@ -241,7 +240,20 @@ impl Aig {
 
 #[cfg(test)]
 mod tests {
+    use super::SimulationWords;
     use crate::Aig;
+
+    #[test]
+    fn test_words() {
+        let mut words = SimulationWords::new(1000);
+        dbg!(&words);
+        words.push_bit(true);
+        dbg!(&words);
+        words.push_bit(false);
+        dbg!(&words);
+        words.push_bit(true);
+        dbg!(&words);
+    }
 
     #[test]
     fn test_simulation() {
