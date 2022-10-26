@@ -7,15 +7,17 @@ impl Aig {
         eid: AigNodeId,
         polarity: bool,
         ignores_begin: AigNodeId,
+        observe_cone: &[bool],
         observes: Vec<AigEdge>,
     ) -> (Vec<AigEdge>, Vec<AigEdge>) {
         assert_matches!(self.nodes[eid].typ, AigNodeType::PrimeInput);
         assert!(eid < ignores_begin);
-        let mut flag = vec![false; self.num_nodes()];
-        let mut value = vec![None; self.num_nodes()];
+        assert!(ignores_begin == observe_cone.len());
+        let mut flag = vec![false; ignores_begin];
+        let mut value = vec![None; ignores_begin];
         flag[eid] = true;
-        for node in 0..self.num_nodes() {
-            if !flag[node] {
+        for node in 0..ignores_begin {
+            if !flag[node] || !observe_cone[node] {
                 continue;
             }
             for out in &self.nodes[node].fanouts {
@@ -91,10 +93,20 @@ impl Aig {
     }
 
     pub fn eliminate_input(&mut self, eid: AigNodeId, observes: Vec<AigEdge>) -> Vec<AigEdge> {
+        let mut fanin_cone = self.logic_cone(observes[0]);
+        for o in &observes[1..] {
+            let cone = self.logic_cone(*o);
+            for i in 0..cone.len() {
+                if cone[i] && !fanin_cone[i] {
+                    fanin_cone[i] = true;
+                }
+            }
+        }
         let num_nodes = self.num_nodes();
         let (out_true, ob_true) =
-            self.eliminate_input_polarity(eid, true, num_nodes, observes.clone());
-        let (out_false, ob_false) = self.eliminate_input_polarity(eid, false, num_nodes, observes);
+            self.eliminate_input_polarity(eid, true, num_nodes, &fanin_cone, observes.clone());
+        let (out_false, ob_false) =
+            self.eliminate_input_polarity(eid, false, num_nodes, &fanin_cone, observes);
         assert_eq!(out_true.len(), out_false.len());
         assert_eq!(ob_true.len(), ob_false.len());
         let mut out = Vec::new();

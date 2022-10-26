@@ -411,7 +411,7 @@ impl Aig {
     pub fn logic_cone(&self, logic: AigEdge) -> Vec<bool> {
         let mut flag = vec![false; self.num_nodes()];
         flag[logic.node_id()] = true;
-        for id in (0..self.num_nodes()).rev() {
+        for id in self.nodes_range_with_true().rev() {
             if flag[id] && self.nodes[id].is_and() {
                 flag[self.nodes[id].fanin0().node_id()] = true;
                 flag[self.nodes[id].fanin1().node_id()] = true;

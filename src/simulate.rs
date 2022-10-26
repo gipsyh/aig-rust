@@ -2,18 +2,17 @@ use crate::{Aig, AigEdge};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
-    hash::Hash,
     ops::{BitAnd, Not},
     vec,
 };
 
 type SimulationWord = u128;
 
-pub type SimulationWordsHash = u128;
+pub type SimulationWordsHash = SimulationWord;
 
 const HASH_MUL: SimulationWordsHash = 131;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SimulationWords {
     hash: SimulationWordsHash,
     nbit_remain: usize,

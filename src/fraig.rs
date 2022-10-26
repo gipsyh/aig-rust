@@ -21,7 +21,7 @@ impl FrAig {
                 match new_map.get_mut(&key) {
                     Some(ev) => ev.push(*e),
                     None => {
-                        assert!(!new_map.contains_key(&!key.clone()));
+                        assert!(!new_map.contains_key(&!key));
                         new_map.insert(key, vec![*e]);
                     }
                 }
@@ -31,8 +31,8 @@ impl FrAig {
     }
 
     fn add_new_node(&mut self, sim: SimulationWords, edge: AigEdge) {
-        self.simulation.add_node(sim.clone());
         assert!(self.sim_map.insert(sim.hash_value(), vec![edge]).is_none());
+        self.simulation.add_node(sim);
     }
 
     pub fn new_input_node(&mut self, node: AigNodeId) {
@@ -109,8 +109,7 @@ impl Aig {
 
     pub fn fraig(&mut self) {
         assert!(self.fraig.is_none());
-        let mut simulation = self.new_simulation(10);
-        dbg!(self.num_nodes());
+        let mut simulation = self.new_simulation(10000);
         loop {
             let candidates = self.get_candidate(&simulation);
             dbg!(&candidates.len());
