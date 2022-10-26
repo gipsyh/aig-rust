@@ -8,7 +8,7 @@ impl Aig {
         }
         let mut reach = self.latch_init_equation();
         let mut inputs = self.cinputs.clone();
-        // inputs.reverse();
+        inputs.reverse();
         let (latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
         let bads = self.bads.clone();
@@ -33,11 +33,7 @@ impl Aig {
             }
             equation = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, equation);
-            if self
-                .sat_solver
-                .solve_under_assumptions([reach_new, !reach])
-                .is_some()
-            {
+            if reach != reach_new {
                 reach = reach_new
             } else {
                 dbg!(deep);

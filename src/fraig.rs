@@ -14,31 +14,7 @@ pub struct FrAig {
 impl FrAig {
     fn add_pattern(&mut self, pattern: Vec<bool>) {
         let old_map = take(&mut self.sim_map);
-        // let mut old_keys = Vec::new();
-        // for v in old_map.values() {
-        //     for key in &old_keys {
-        //         assert_ne!(*key, self.simulation.hash_value(v[0]));
-        //     }
-        //     old_keys.push(self.simulation.hash_value(v[0]));
-        // }
         self.simulation.add_pattern(pattern);
-        // let mut keys: Vec<(u128, AigEdge)> = Vec::new();
-        // let mut ttt = 0;
-        // for v in old_map.values() {
-        //     for i in 0..keys.len() {
-        //         if keys[i].0 == self.simulation.hash_value(v[0]) {
-        //             dbg!(keys[i]);
-        //             dbg!(self.simulation.hash_value(v[0]));
-        //             dbg!(old_keys[i]);
-        //             dbg!(old_keys[ttt]);
-        //             dbg!(&self.simulation.simulations()[v[0].node_id()]);
-        //             dbg!(&self.simulation.simulations()[keys[i].1.node_id()]);
-        //             panic!();
-        //         }
-        //     }
-        //     ttt += 1;
-        //     keys.push((self.simulation.hash_value(v[0]), v[0]));
-        // }
         for (_, c) in old_map {
             assert!(self
                 .sim_map
@@ -130,7 +106,7 @@ impl Aig {
 
     pub fn fraig(&mut self) {
         assert!(self.fraig.is_none());
-        let mut simulation = self.new_simulation(10000);
+        let mut simulation = self.new_simulation(1000);
         loop {
             let candidates = self.get_candidate(&simulation);
             let mut update = false;

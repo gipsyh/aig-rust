@@ -60,6 +60,10 @@ impl SatSolver {
         }
         self.solve_under_assumptions([!y, z])
     }
+
+    pub fn imply_check(&mut self, from: AigEdge, to: AigEdge) -> Option<Vec<bool>> {
+        self.solve_under_assumptions([from, !to])
+    }
 }
 
 impl SatSolver {
