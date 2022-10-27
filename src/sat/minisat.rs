@@ -28,7 +28,7 @@ impl SatSolver for Solver {
 
     fn mark_cone(&mut self, _cones: &[AigEdge]) {}
 
-    fn solve(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
+    fn solve_without_mark_cone(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
         let lits: Vec<Bool> = assumptions
             .into_iter()
             .map(|e| self.edge_to_lit(*e))

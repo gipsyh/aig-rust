@@ -16,27 +16,37 @@ pub trait SatSolver: Debug {
 
     fn mark_cone(&mut self, cones: &[AigEdge]);
 
-    fn solve(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]>;
+    fn solve_without_mark_cone(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]>;
+
+    fn solve(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
+        self.new_round();
+        self.mark_cone(assumptions);
+        self.solve_without_mark_cone(assumptions)
+    }
 
     fn equivalence_check(&mut self, x: AigEdge, y: AigEdge) -> Option<&[AigEdge]> {
+        self.new_round();
+        self.mark_cone(&[x, y]);
         let m = metadata(self as *const Self);
         let fake: *mut Self = from_raw_parts_mut(self as *mut Self as *mut (), m);
-        if let Some(ret) = self.solve(&[x, !y]) {
+        if let Some(ret) = self.solve_without_mark_cone(&[x, !y]) {
             return Some(ret);
         }
-        unsafe { fake.as_mut().unwrap() }.solve(&[!x, y])
+        unsafe { fake.as_mut().unwrap() }.solve_without_mark_cone(&[!x, y])
     }
 
     fn equivalence_check_xy_z(&mut self, x: AigEdge, y: AigEdge, z: AigEdge) -> Option<&[AigEdge]> {
+        self.new_round();
+        self.mark_cone(&[x, y, z]);
         let m = metadata(self as *const Self);
         let fake: *mut Self = from_raw_parts_mut(self as *mut Self as *mut (), m);
-        if let Some(ret) = self.solve(&[x, y, !z]) {
+        if let Some(ret) = self.solve_without_mark_cone(&[x, y, !z]) {
             return Some(ret);
         }
-        if let Some(ret) = unsafe { fake.as_mut().unwrap() }.solve(&[!x, z]) {
+        if let Some(ret) = unsafe { fake.as_mut().unwrap() }.solve_without_mark_cone(&[!x, z]) {
             return Some(ret);
         }
-        unsafe { fake.as_mut().unwrap() }.solve(&[!y, z])
+        unsafe { fake.as_mut().unwrap() }.solve_without_mark_cone(&[!y, z])
     }
 }
 

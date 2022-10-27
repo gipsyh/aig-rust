@@ -56,11 +56,7 @@ impl SatSolver for Solver {
         }
     }
 
-    fn solve(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
-        self.solver.new_round();
-        for a in assumptions {
-            self.solver.mark_cone(Self::node_to_var(a.node_id()));
-        }
+    fn solve_without_mark_cone(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
         let assumptions: Vec<Lit> = assumptions
             .iter()
             .map(|e| Lit::new(Self::node_to_var(e.node_id()), e.compl()))
@@ -94,7 +90,7 @@ mod tests {
         solver.add_and_node(3, 1.into(), 2.into());
         solver.new_round();
         solver.mark_cone(&[3.into()]);
-        let ret = solver.solve(&[AigEdge::new(3, true)]);
+        let ret = solver.solve_without_mark_cone(&[AigEdge::new(3, true)]);
         dbg!(ret);
     }
 }
