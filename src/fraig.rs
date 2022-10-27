@@ -89,7 +89,9 @@ impl Aig {
             match candidate_map.get_mut(&simulation.simulations()[idx].hash_value()) {
                 Some(candidate) => candidate.push(AigEdge::new(idx, false)),
                 None => {
-                    match candidate_map.get_mut(&!&simulation.simulations()[idx].hash_value()) {
+                    match candidate_map
+                        .get_mut(&(!simulation.simulations()[idx].clone()).hash_value())
+                    {
                         Some(candidate) => candidate.push(AigEdge::new(idx, true)),
                         None => {
                             candidate_map.insert(

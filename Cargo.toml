@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aiger = { path = "../aiger-rust" }
+aiger = { git = "https://github.com/gipsyh/aiger-rust.git" }
 rand = "0.8.5"
 minisat = "0.4.4"
