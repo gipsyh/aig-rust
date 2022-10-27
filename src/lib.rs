@@ -1,5 +1,4 @@
-#![feature(assert_matches)]
-#![feature(unchecked_math)]
+#![feature(assert_matches, ptr_metadata, unchecked_math)]
 
 mod aiger;
 mod display;
@@ -206,7 +205,7 @@ pub struct Aig {
     num_ands: usize,
     strash_map: HashMap<(AigEdge, AigEdge), AigNodeId>,
     fraig: Option<FrAig>,
-    sat_solver: SatSolver,
+    sat_solver: Box<dyn SatSolver>,
 }
 
 impl Aig {
@@ -242,7 +241,7 @@ impl Aig {
         self.nodes.push(input);
         self.cinputs.push(nodeid);
         self.num_inputs += 1;
-        self.sat_solver.new_input_node();
+        self.sat_solver.add_input_node(nodeid);
         nodeid
     }
 
@@ -271,8 +270,8 @@ impl Aig {
             Aig::constant_edge(false)
         } else {
             let nodeid = self.nodes.len();
-            if let Some(fraig) = &mut self.fraig {
-                let and_edge = fraig.new_and_node(&mut self.sat_solver, fanin0, fanin1, nodeid);
+            if self.fraig.is_some() {
+                let and_edge = self.new_and_node_inner(fanin0, fanin1, nodeid);
                 if and_edge.node_id() != nodeid {
                     return and_edge;
                 } else {
@@ -292,7 +291,7 @@ impl Aig {
             self.nodes[fanin1.id]
                 .fanouts
                 .push(AigEdge::new(nodeid, fanin1.compl()));
-            self.sat_solver.new_node(fanin0, fanin1);
+            self.sat_solver.add_and_node(nodeid, fanin0, fanin1);
             nodeid.into()
         }
     }

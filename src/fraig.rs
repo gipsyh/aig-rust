@@ -1,7 +1,9 @@
+use rand::{thread_rng, Rng};
+
 use crate::{
     sat::SatSolver,
     simulate::{Simulation, SimulationWords, SimulationWordsHash},
-    Aig, AigEdge, AigNodeId,
+    Aig, AigEdge, AigNode, AigNodeId,
 };
 use std::{collections::HashMap, mem::take, vec};
 
@@ -39,39 +41,45 @@ impl FrAig {
             .is_none());
         self.simulation.add_node(sim);
     }
+}
 
-    pub fn new_and_node(
+impl Aig {
+    pub fn new_and_node_inner(
         &mut self,
-        solver: &mut SatSolver,
         fanin0: AigEdge,
         fanin1: AigEdge,
         new_node: AigNodeId,
     ) -> AigEdge {
-        let sim = self.simulation.sim_value(fanin0) & self.simulation.sim_value(fanin1);
-        match self.sim_map.get_mut(&sim.hash_value()) {
-            Some(c) => match solver.equivalence_check_xy_z(fanin0, fanin1, c[0]) {
-                Some(p) => {
-                    self.add_pattern(p);
-                    let sim = self.simulation.sim_value(fanin0) & self.simulation.sim_value(fanin1);
-                    assert!(!self.sim_map.contains_key(&sim.hash_value()));
-                    self.add_new_node(sim, new_node.into());
+        let fraig = self.fraig.as_mut().unwrap();
+        let sim = fraig.simulation.sim_value(fanin0) & fraig.simulation.sim_value(fanin1);
+        match fraig.sim_map.get_mut(&sim.hash_value()) {
+            Some(c) => match self.sat_solver.equivalence_check_xy_z(fanin0, fanin1, c[0]) {
+                Some(s) => {
+                    fraig.add_pattern(Self::gen_pattern(&self.nodes, s));
+                    let sim =
+                        fraig.simulation.sim_value(fanin0) & fraig.simulation.sim_value(fanin1);
+                    assert!(!fraig.sim_map.contains_key(&sim.hash_value()));
+                    fraig.add_new_node(sim, new_node.into());
                     new_node.into()
                 }
                 None => c[0],
             },
-            None => match self.sim_map.get(&!sim.hash_value()) {
-                Some(c) => match solver.equivalence_check_xy_z(fanin0, fanin1, !c[0]) {
-                    Some(p) => {
-                        self.add_pattern(p);
+            None => match fraig.sim_map.get(&!sim.hash_value()) {
+                Some(c) => match self
+                    .sat_solver
+                    .equivalence_check_xy_z(fanin0, fanin1, !c[0])
+                {
+                    Some(s) => {
+                        fraig.add_pattern(Self::gen_pattern(&self.nodes, s));
                         let sim =
-                            self.simulation.sim_value(fanin0) & self.simulation.sim_value(fanin1);
-                        self.add_new_node(sim, new_node.into());
+                            fraig.simulation.sim_value(fanin0) & fraig.simulation.sim_value(fanin1);
+                        fraig.add_new_node(sim, new_node.into());
                         new_node.into()
                     }
                     None => !c[0],
                 },
                 None => {
-                    self.add_new_node(sim, new_node.into());
+                    fraig.add_new_node(sim, new_node.into());
                     new_node.into()
                 }
             },
@@ -80,6 +88,31 @@ impl FrAig {
 }
 
 impl Aig {
+    fn gen_pattern(nodes: &[AigNode], s: &[AigEdge]) -> Vec<bool> {
+        let mut r = thread_rng();
+        let mut flags = vec![false; nodes.len() - 1];
+        let mut ret = vec![false; nodes.len() - 1];
+        for e in s {
+            ret[e.node_id() - 1] = !e.compl();
+            flags[e.node_id() - 1] = true;
+        }
+        for i in 1..nodes.len() {
+            if !flags[i - 1] {
+                flags[i - 1] = true;
+                if nodes[i].is_and() {
+                    let fanin0 = nodes[i].fanin0();
+                    let fanin1 = nodes[i].fanin1();
+                    let v0 = ret[fanin0.node_id() - 1] ^ fanin0.compl();
+                    let v1 = ret[fanin1.node_id() - 1] ^ fanin1.compl();
+                    ret[i - 1] = v0 & v1;
+                } else {
+                    ret[i - 1] = r.gen();
+                }
+            }
+        }
+        ret
+    }
+
     fn get_candidate(
         &mut self,
         simulation: &Simulation,
@@ -117,9 +150,8 @@ impl Aig {
                     continue;
                 }
                 for c in &candidate[1..] {
-                    if let Some(p) = self.sat_solver.equivalence_check(candidate[0], *c) {
-                        assert!(p.len() == self.num_nodes() - 1);
-                        simulation.add_pattern(p);
+                    if let Some(s) = self.sat_solver.equivalence_check(candidate[0], *c) {
+                        simulation.add_pattern(Self::gen_pattern(&self.nodes, s));
                         update = true;
                     }
                 }
@@ -147,10 +179,16 @@ impl Aig {
 mod tests {
     use crate::Aig;
     #[test]
-    fn test() {
+    fn test1() {
         let mut aig = Aig::from_file("aigs/cec1.aag").unwrap();
-        println!("{}", aig);
         aig.fraig();
-        println!("{}", aig);
+        assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 6);
+    }
+
+    #[test]
+    fn test2() {
+        let mut aig = Aig::from_file("aigs/cec2.aag").unwrap();
+        aig.fraig();
+        assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
     }
 }

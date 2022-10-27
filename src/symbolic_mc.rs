@@ -19,11 +19,7 @@ impl Aig {
         loop {
             deep += 1;
             dbg!(deep, self.num_nodes());
-            if self
-                .sat_solver
-                .solve_under_assumptions([bad, reach])
-                .is_some()
-            {
+            if self.sat_solver.solve(&[bad, reach]).is_some() {
                 return false;
             }
             let mut equation = self.new_and_node(reach, transition);

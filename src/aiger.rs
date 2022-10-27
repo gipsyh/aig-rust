@@ -1,4 +1,7 @@
-use crate::{sat::SatSolver, Aig, AigEdge, AigLatch, AigNode};
+use crate::{
+    sat::{self},
+    Aig, AigEdge, AigLatch, AigNode,
+};
 use std::{collections::HashMap, io, mem::take, path::Path};
 
 impl Aig {
@@ -106,6 +109,7 @@ impl Aig {
                 } => (),
             }
         }
+
         unsafe { nodes.set_len(header.i + header.l + header.a + 1) };
         let mut ret = Self {
             nodes,
@@ -118,7 +122,8 @@ impl Aig {
             num_ands: header.a,
             strash_map: HashMap::new(),
             fraig: None,
-            sat_solver: SatSolver::default(),
+            // sat_solver: Box::new(sat::minisat::Solver::new()),
+            sat_solver: Box::new(sat::abc_glucose::Solver::new()),
         };
         ret.setup_levels();
         ret.setup_fanouts();
