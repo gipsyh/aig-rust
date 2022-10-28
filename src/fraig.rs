@@ -66,11 +66,6 @@ impl Aig {
                     Some(s) => {
                         fraig.add_pattern(Self::gen_pattern(&self.nodes, s));
                         let sim = fraig.simulation.sim_and(fanin0, fanin1);
-                        if fraig.sim_map.contains_key(&sim.abs_hash_value()) {
-                            dbg!(fraig.sim_map.get(&sim.abs_hash_value()).unwrap());
-                            println!("{}", fraig.simulation[0]);
-                            panic!();
-                        }
                         fraig.add_new_node(sim, new_node.into());
                         new_node.into()
                     }

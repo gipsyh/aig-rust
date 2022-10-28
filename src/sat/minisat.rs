@@ -54,8 +54,8 @@ impl Solver {
 
 impl Solver {
     pub fn new() -> Self {
-        let mut solver = minisat::Solver::new();
-        let vars = vec![solver.new_lit()];
+        let solver = minisat::Solver::new();
+        let vars = vec![Bool::Const(true)];
         Self {
             solver,
             vars,
