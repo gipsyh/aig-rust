@@ -29,7 +29,7 @@ impl SimulationWords {
         self.words[nword] & (1 << nbit) > 0
     }
 
-    fn set_bit_value(&mut self, index: usize, value: bool) {
+    fn _set_bit_value(&mut self, index: usize, value: bool) {
         let nword = index / SimulationWord::BITS as usize;
         let nbit = index % SimulationWord::BITS as usize;
         if value {
@@ -269,10 +269,10 @@ impl Simulation {
     }
 
     pub fn add_pattern(&mut self, pattern: Vec<bool>) {
-        assert_eq!(pattern.len() + 1, self.simulations.len());
-        self.simulations[0].push_bit(true);
-        for i in 1..self.simulations.len() {
-            self.simulations[i].push_bit(pattern[i - 1])
+        assert_eq!(pattern.len(), self.simulations.len());
+        assert!(pattern[0]);
+        for (i, p) in pattern.iter().enumerate().take(self.simulations.len()) {
+            self.simulations[i].push_bit(*p)
         }
     }
 

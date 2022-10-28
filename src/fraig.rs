@@ -83,23 +83,24 @@ impl Aig {
 impl Aig {
     fn gen_pattern(nodes: &[AigNode], s: &[AigEdge]) -> Vec<bool> {
         let mut r = thread_rng();
-        let mut flags = vec![false; nodes.len() - 1];
-        let mut ret = vec![false; nodes.len() - 1];
+        let mut flags = vec![false; nodes.len()];
+        let mut ret = vec![false; nodes.len()];
+        ret[0] = true;
         for e in s {
-            ret[e.node_id() - 1] = !e.compl();
-            flags[e.node_id() - 1] = true;
+            ret[e.node_id()] = !e.compl();
+            flags[e.node_id()] = true;
         }
         for i in 1..nodes.len() {
-            if !flags[i - 1] {
-                flags[i - 1] = true;
+            if !flags[i] {
+                flags[i] = true;
                 if nodes[i].is_and() {
                     let fanin0 = nodes[i].fanin0();
                     let fanin1 = nodes[i].fanin1();
-                    let v0 = ret[fanin0.node_id() - 1] ^ fanin0.compl();
-                    let v1 = ret[fanin1.node_id() - 1] ^ fanin1.compl();
-                    ret[i - 1] = v0 & v1;
+                    let v0 = ret[fanin0.node_id()] ^ fanin0.compl();
+                    let v1 = ret[fanin1.node_id()] ^ fanin1.compl();
+                    ret[i] = v0 & v1;
                 } else {
-                    ret[i - 1] = r.gen();
+                    ret[i] = r.gen();
                 }
             }
         }
@@ -137,7 +138,7 @@ impl Aig {
 
     pub fn fraig(&mut self) {
         assert!(self.fraig.is_none());
-        let mut simulation = self.new_simulation(100);
+        let mut simulation = self.new_simulation(64);
         loop {
             let candidates = self.get_candidate(&simulation);
             dbg!(candidates.keys().count());

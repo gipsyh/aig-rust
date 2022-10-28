@@ -31,7 +31,7 @@ impl Aig {
             for iid in &latch_nexts {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
                 equation = self.eliminate_input(*iid, vec![equation])[0];
-                // dbg!(self.num_nodes());
+                dbg!(self.num_nodes());
             }
             frontier = equation;
             let bad_new = self.new_or_node(bad, frontier);
@@ -91,10 +91,8 @@ mod tests {
     use crate::Aig;
     #[test]
     fn test1() {
-        let mut aig = Aig::from_file(
-            "/root/MC-Benchmark/examples/counter/10bit/counter.aag",
-        )
-        .unwrap();
+        let mut aig =
+            Aig::from_file("/root/MC-Benchmark/examples/counter/10bit/counter.aag").unwrap();
         println!("{}", aig);
         aig.fraig();
         dbg!(aig.symbolic_mc_back());
