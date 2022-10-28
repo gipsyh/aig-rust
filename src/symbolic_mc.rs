@@ -68,6 +68,7 @@ impl Aig {
             for iid in &inputs {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
                 equation = self.eliminate_input(*iid, vec![equation])[0];
+                // dbg!(self.num_nodes());
             }
             frontier = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, frontier);
@@ -91,7 +92,7 @@ mod tests {
     #[test]
     fn test1() {
         let mut aig = Aig::from_file(
-            "/root/MC-Benchmark/hwmcc20/aig/2019/goel/crafted/paper_v3/paper_v3.aag",
+            "/root/MC-Benchmark/examples/counter/10bit/counter.aag",
         )
         .unwrap();
         println!("{}", aig);
@@ -101,7 +102,7 @@ mod tests {
 
     #[test]
     fn test2() {
-        let mut aig = Aig::from_file("./aigs/counter-2bit.aag").unwrap();
+        let mut aig = Aig::from_file("./aigs/counter-3bit.aag").unwrap();
         println!("{}", aig);
         aig.fraig();
         dbg!(aig.symbolic_mc_back());
