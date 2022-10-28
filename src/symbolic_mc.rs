@@ -12,10 +12,15 @@ impl Aig {
         for b in &bads[1..] {
             bad = self.new_or_node(bad, *b);
         }
-        let mut latch_nexts = Vec::new();
+        let mut eliminate = Vec::new();
+        for i in &self.cinputs {
+            if let crate::AigNodeType::PrimeInput = self.nodes[*i].typ {
+                eliminate.push(*i);
+            }
+        }
         let (mut latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
         for (x, y) in &mut latch_map {
-            latch_nexts.push(*x);
+            eliminate.push(*x);
             swap(x, y)
         }
         let mut frontier = bad;
@@ -28,7 +33,7 @@ impl Aig {
             }
             frontier = self.migrate_logic(&latch_map, frontier);
             let mut equation = self.new_and_node(frontier, transition);
-            for iid in &latch_nexts {
+            for iid in &eliminate {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
                 equation = self.eliminate_input(*iid, vec![equation])[0];
                 dbg!(self.num_nodes());

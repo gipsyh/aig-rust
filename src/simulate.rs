@@ -7,7 +7,7 @@ use std::{
 
 type SimulationWord = u16;
 
-pub type SimulationWordsHash = u128;
+pub type SimulationWordsHash = u64;
 
 const HASH_MUL: SimulationWordsHash = 1000000007;
 
@@ -309,7 +309,7 @@ impl Aig {
 #[cfg(test)]
 mod tests {
     use super::SimulationWords;
-    use crate::{Aig, AigEdge};
+    use crate::Aig;
 
     #[test]
     fn test_words() {
