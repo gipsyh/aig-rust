@@ -3,6 +3,7 @@ use std::vec;
 use crate::{Aig, AigEdge, AigNodeId};
 
 impl Aig {
+    /// src to dest
     pub fn migrate_logic(
         &mut self,
         nodes: &Vec<(AigNodeId, AigNodeId)>,

@@ -8,5 +8,5 @@ fn main() {
     println!("{}", aig);
     aig.fraig();
     println!("{}", aig);
-    dbg!(aig.symbolic_mc());
+    dbg!(aig.symbolic_mc_back());
 }
