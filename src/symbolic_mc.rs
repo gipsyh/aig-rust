@@ -83,6 +83,10 @@ impl Aig {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
+    use std::process::Termination;
+    use test::Bencher;
+
     use crate::Aig;
     #[test]
     fn test1() {
@@ -112,6 +116,14 @@ mod tests {
         println!("{}", aig);
         aig.fraig();
         println!("{}", aig);
+        dbg!(aig.symbolic_mc());
+    }
+
+    #[bench]
+    fn bench1(bencher: &mut Bencher) -> impl Termination {
+        let mut aig =
+            Aig::from_file("/root/MC-Benchmark/examples/counter/10bit/counter.aag").unwrap();
+        aig.fraig();
         dbg!(aig.symbolic_mc());
     }
 }

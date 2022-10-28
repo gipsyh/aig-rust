@@ -1,4 +1,4 @@
-#![feature(assert_matches, ptr_metadata, unchecked_math)]
+#![feature(assert_matches, ptr_metadata, unchecked_math, test)]
 
 mod aiger;
 mod display;
