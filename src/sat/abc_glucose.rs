@@ -67,7 +67,8 @@ impl SatSolver for Solver {
                 self.cex = cex
                     .iter()
                     .chain(assumptions.iter())
-                    .map(|l| AigEdge::new(Into::<i32>::into(l.var()) as usize, l.compl()))
+                    .map(|l| AigEdge::new((Into::<i32>::into(l.var())) as usize, l.compl()))
+                    .filter(|e| e.node_id() > 0)
                     .collect();
                 Some(&self.cex)
             }
