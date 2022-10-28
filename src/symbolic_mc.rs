@@ -7,6 +7,7 @@ impl Aig {
             return true;
         }
         let mut reach = self.latch_init_equation();
+        let mut frontier = reach;
         let inputs = self.cinputs.clone();
         let (latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
@@ -18,16 +19,16 @@ impl Aig {
         loop {
             deep += 1;
             dbg!(deep, self.num_nodes());
-            if self.sat_solver.solve(&[bad, reach]).is_some() {
+            if self.sat_solver.solve(&[bad, frontier]).is_some() {
                 return false;
             }
-            let mut equation = self.new_and_node(reach, transition);
+            let mut equation = self.new_and_node(frontier, transition);
             for iid in &inputs {
                 assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
                 equation = self.eliminate_input(*iid, vec![equation])[0];
             }
-            equation = self.migrate_logic(&latch_map, equation);
-            let reach_new = self.new_or_node(reach, equation);
+            frontier = self.migrate_logic(&latch_map, equation);
+            let reach_new = self.new_or_node(reach, frontier);
             if reach != reach_new {
                 reach = reach_new
             } else {
