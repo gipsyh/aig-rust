@@ -8,7 +8,7 @@ use std::{collections::HashMap, mem::take, vec};
 #[derive(Debug)]
 pub struct FrAig {
     simulation: Simulation,
-    sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
+    sim_map: HashMap<SimulationWordsHash, AigEdge>,
 }
 
 impl FrAig {
@@ -16,7 +16,7 @@ impl FrAig {
         let old_map = take(&mut self.sim_map);
         self.simulation.add_pattern(pattern);
         for (_, c) in old_map {
-            let (hash_value, _) = self.simulation.abs_hash_value(c[0]);
+            let (hash_value, _) = self.simulation.abs_hash_value(c);
             assert!(self.sim_map.insert(hash_value, c).is_none());
         }
     }
@@ -25,10 +25,7 @@ impl FrAig {
         if sim.compl() {
             edge = !edge;
         }
-        assert!(self
-            .sim_map
-            .insert(sim.abs_hash_value(), vec![edge])
-            .is_none());
+        assert!(self.sim_map.insert(sim.abs_hash_value(), edge).is_none());
         self.simulation.add_node(sim);
     }
 
@@ -42,10 +39,7 @@ impl FrAig {
         } else {
             AigEdge::new(node, false)
         };
-        assert!(self
-            .sim_map
-            .insert(sim.abs_hash_value(), vec![edge])
-            .is_none());
+        assert!(self.sim_map.insert(sim.abs_hash_value(), edge).is_none());
         self.simulation.add_node(sim);
     }
 }
@@ -61,7 +55,7 @@ impl Aig {
         let sim = fraig.simulation.sim_and(fanin0, fanin1);
         match fraig.sim_map.get(&sim.abs_hash_value()) {
             Some(c) => {
-                let can = if sim.compl() { !c[0] } else { c[0] };
+                let can = if sim.compl() { !*c } else { *c };
                 match self.sat_solver.equivalence_check_xy_z(fanin0, fanin1, can) {
                     Some(s) => {
                         fraig.add_pattern(Self::gen_pattern(&self.nodes, s));
@@ -156,8 +150,10 @@ impl Aig {
                 }
             }
             if !update {
+                let mut sim_map = HashMap::new();
                 for (k, candidate) in &candidates {
                     assert_eq!(*k, simulation.abs_hash_value(candidate[0]).0);
+                    assert!(sim_map.insert(*k, candidate[0]).is_none());
                     for c in &candidate[1..] {
                         assert_eq!(*k, simulation.abs_hash_value(*c).0);
                         self.merge_fe_node(*c, candidate[0]);
@@ -165,7 +161,7 @@ impl Aig {
                 }
                 self.fraig = Some(FrAig {
                     simulation,
-                    sim_map: candidates,
+                    sim_map,
                 });
                 return;
             }
