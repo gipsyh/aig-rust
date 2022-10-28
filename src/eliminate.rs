@@ -93,9 +93,9 @@ impl Aig {
     }
 
     pub fn eliminate_input(&mut self, eid: AigNodeId, observes: Vec<AigEdge>) -> Vec<AigEdge> {
-        let mut fanin_cone = self.logic_cone(observes[0]);
+        let mut fanin_cone = self.fanin_logic_cone(observes[0]);
         for o in &observes[1..] {
-            let cone = self.logic_cone(*o);
+            let cone = self.fanin_logic_cone(*o);
             for i in 0..cone.len() {
                 if cone[i] && !fanin_cone[i] {
                     fanin_cone[i] = true;

@@ -7,8 +7,7 @@ impl Aig {
             return true;
         }
         let mut reach = self.latch_init_equation();
-        let mut inputs = self.cinputs.clone();
-        inputs.reverse();
+        let inputs = self.cinputs.clone();
         let (latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
         let bads = self.bads.clone();

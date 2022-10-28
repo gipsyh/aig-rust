@@ -25,12 +25,6 @@ use sat::SatSolver;
 
 type AigNodeId = usize;
 
-impl Into<AigEdge> for AigNodeId {
-    fn into(self) -> AigEdge {
-        AigEdge::new(self, false)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum AigNodeType {
     True,
@@ -145,12 +139,6 @@ impl AigNode {
     }
 }
 
-impl Into<AigEdge> for AigNode {
-    fn into(self) -> AigEdge {
-        AigEdge::new(self.id, false)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AigEdge {
     id: AigNodeId,
@@ -163,6 +151,15 @@ impl Not for AigEdge {
     fn not(mut self) -> Self::Output {
         self.complement = !self.complement;
         self
+    }
+}
+
+impl From<AigNodeId> for AigEdge {
+    fn from(value: AigNodeId) -> Self {
+        Self {
+            id: value,
+            complement: false,
+        }
     }
 }
 
@@ -407,13 +404,26 @@ impl Aig {
             .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
     }
 
-    pub fn logic_cone(&self, logic: AigEdge) -> Vec<bool> {
+    pub fn fanin_logic_cone(&self, logic: AigEdge) -> Vec<bool> {
         let mut flag = vec![false; self.num_nodes()];
         flag[logic.node_id()] = true;
         for id in self.nodes_range_with_true().rev() {
             if flag[id] && self.nodes[id].is_and() {
                 flag[self.nodes[id].fanin0().node_id()] = true;
                 flag[self.nodes[id].fanin1().node_id()] = true;
+            }
+        }
+        flag
+    }
+
+    pub fn fanout_logic_cone(&self, logic: AigEdge) -> Vec<bool> {
+        let mut flag = vec![false; self.num_nodes()];
+        flag[logic.node_id()] = true;
+        for id in self.nodes_range_with_true() {
+            if flag[id] {
+                for f in &self.nodes[id].fanouts {
+                    flag[f.node_id()] = true;
+                }
             }
         }
         flag

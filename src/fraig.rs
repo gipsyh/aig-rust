@@ -1,10 +1,8 @@
-use rand::{thread_rng, Rng};
-
 use crate::{
-    sat::SatSolver,
     simulate::{Simulation, SimulationWords, SimulationWordsHash},
     Aig, AigEdge, AigNode, AigNodeId,
 };
+use rand::{thread_rng, Rng};
 use std::{collections::HashMap, mem::take, vec};
 
 #[derive(Debug)]
@@ -52,7 +50,7 @@ impl Aig {
     ) -> AigEdge {
         let fraig = self.fraig.as_mut().unwrap();
         let sim = fraig.simulation.sim_value(fanin0) & fraig.simulation.sim_value(fanin1);
-        match fraig.sim_map.get_mut(&sim.hash_value()) {
+        match fraig.sim_map.get(&sim.hash_value()) {
             Some(c) => match self.sat_solver.equivalence_check_xy_z(fanin0, fanin1, c[0]) {
                 Some(s) => {
                     fraig.add_pattern(Self::gen_pattern(&self.nodes, s));

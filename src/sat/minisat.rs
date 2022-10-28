@@ -1,5 +1,5 @@
 use super::SatSolver;
-use crate::{AigEdge, AigNode, AigNodeId};
+use crate::{AigEdge, AigNodeId};
 use minisat::Bool;
 
 #[derive(Debug)]
@@ -29,10 +29,7 @@ impl SatSolver for Solver {
     fn mark_cone(&mut self, _cones: &[AigEdge]) {}
 
     fn solve_without_mark_cone(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
-        let lits: Vec<Bool> = assumptions
-            .into_iter()
-            .map(|e| self.edge_to_lit(*e))
-            .collect();
+        let lits: Vec<Bool> = assumptions.iter().map(|e| self.edge_to_lit(*e)).collect();
         match self.solver.solve_under_assumptions(lits) {
             Ok(m) => {
                 for i in 1..self.vars.len() {
@@ -46,10 +43,6 @@ impl SatSolver for Solver {
 }
 
 impl Solver {
-    fn node_to_lit(&self, n: &AigNode) -> Bool {
-        self.vars[n.node_id()]
-    }
-
     fn edge_to_lit(&self, e: AigEdge) -> Bool {
         if e.compl() {
             !self.vars[e.node_id()]
