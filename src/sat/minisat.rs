@@ -51,15 +51,3 @@ impl Solver {
         }
     }
 }
-
-impl Solver {
-    pub fn new() -> Self {
-        let mut solver = minisat::Solver::new();
-        let vars = vec![solver.new_lit()];
-        Self {
-            solver,
-            vars,
-            ret: Vec::new(),
-        }
-    }
-}

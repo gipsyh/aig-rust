@@ -37,7 +37,6 @@ pub enum AigNodeType {
 pub struct AigNode {
     id: AigNodeId,
     level: usize,
-    size: usize,
     typ: AigNodeType,
     fanouts: Vec<AigEdge>,
 }
@@ -92,7 +91,6 @@ impl AigNode {
     fn new_true(id: usize) -> Self {
         Self {
             id,
-            size: 0,
             typ: AigNodeType::True,
             fanouts: Vec::new(),
             level: 0,
@@ -102,7 +100,6 @@ impl AigNode {
     fn new_prime_input(id: usize) -> Self {
         Self {
             id,
-            size: 0,
             typ: AigNodeType::PrimeInput,
             fanouts: Vec::new(),
             level: 0,
@@ -112,7 +109,6 @@ impl AigNode {
     fn new_latch_input(id: usize) -> Self {
         Self {
             id,
-            size: 0,
             typ: AigNodeType::LatchInput,
             fanouts: Vec::new(),
             level: 0,
@@ -125,7 +121,6 @@ impl AigNode {
         }
         Self {
             id,
-            size: 0,
             typ: AigNodeType::And(fanin0, fanin1),
             fanouts: Vec::new(),
             level,
