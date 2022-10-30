@@ -51,7 +51,11 @@ impl Aig {
 
     pub fn symbolic_mc(&mut self) -> bool {
         if self.bads.is_empty() {
-            return true;
+            if !self.outputs.is_empty() {
+                self.bads.push(self.outputs[0]);
+            } else {
+                return true;
+            }
         }
         let mut reach = self.latch_init_equation();
         let mut frontier = reach;
@@ -90,8 +94,6 @@ impl Aig {
 #[cfg(test)]
 mod tests {
     extern crate test;
-    use std::process::Termination;
-    use test::Bencher;
 
     use crate::Aig;
     #[test]
@@ -120,14 +122,6 @@ mod tests {
         println!("{}", aig);
         aig.fraig();
         println!("{}", aig);
-        dbg!(aig.symbolic_mc());
-    }
-
-    #[bench]
-    fn bench1(bencher: &mut Bencher) -> impl Termination {
-        let mut aig =
-            Aig::from_file("/root/MC-Benchmark/examples/counter/10bit/counter.aag").unwrap();
-        aig.fraig();
         dbg!(aig.symbolic_mc());
     }
 }
