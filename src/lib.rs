@@ -263,11 +263,14 @@ impl Aig {
         } else {
             let nodeid = self.nodes.len();
             if self.fraig.is_some() {
-                let and_edge = self.new_and_node_inner(fanin0, fanin1, nodeid);
-                if and_edge.node_id() != nodeid {
+                if let Some(and_edge) = self.fraig.as_mut().unwrap().new_and_node(
+                    &self.nodes,
+                    self.sat_solver.as_mut(),
+                    fanin0,
+                    fanin1,
+                    nodeid,
+                ) {
                     return and_edge;
-                } else {
-                    assert!(!and_edge.compl());
                 }
             }
             let level = self.nodes[fanin0.node_id()]
@@ -477,17 +480,6 @@ impl Index<AigNodeId> for Aig {
 #[cfg(test)]
 mod tests {
     use crate::Aig;
-
-    #[test]
-    fn setup_transition() {
-        let mut aig = Aig::from_file("aigs/counter_init11.aag").unwrap();
-        println!("{}", aig);
-        let reachable = aig.latch_init_equation();
-        println!("{}", aig);
-        let (_, equation) = aig.transfer_latch_outputs_into_pinputs();
-        let _equation = aig.new_and_node(reachable, equation);
-    }
-
     #[test]
     fn test_replace_node() {
         let mut aig = Aig::from_file("aigs/i10.aag").unwrap();
