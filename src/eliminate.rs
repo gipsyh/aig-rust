@@ -93,15 +93,7 @@ impl Aig {
     }
 
     pub fn eliminate_input(&mut self, eid: AigNodeId, observes: Vec<AigEdge>) -> Vec<AigEdge> {
-        let mut fanin_cone = self.fanin_logic_cone(observes[0]);
-        for o in &observes[1..] {
-            let cone = self.fanin_logic_cone(*o);
-            for i in 0..cone.len() {
-                if cone[i] && !fanin_cone[i] {
-                    fanin_cone[i] = true;
-                }
-            }
-        }
+        let fanin_cone = self.fanin_logic_cone(&observes);
         let num_nodes = self.num_nodes();
         let (out_true, ob_true) =
             self.eliminate_input_polarity(eid, true, num_nodes, &fanin_cone, observes.clone());

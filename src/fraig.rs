@@ -157,6 +157,37 @@ impl FrAig {
     }
 }
 
+impl FrAig {
+    pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
+        self.simulation.cleanup_redundant(node_map);
+        let mut should_remove = Vec::new();
+        for (k, cans) in &mut self.sim_map {
+            let old = take(cans);
+            for mut o in old {
+                if let Some(dst) = node_map[o.node_id()] {
+                    o.set_nodeid(dst);
+                    cans.push(o);
+                }
+            }
+            if cans.is_empty() {
+                should_remove.push(*k);
+            }
+        }
+        for should in should_remove {
+            assert!(self.sim_map.remove(&should).is_some());
+        }
+        for cex in &mut self.lazy_cex {
+            let old_cex = take(cex);
+            for mut old in old_cex {
+                if let Some(dst) = node_map[old.node_id()] {
+                    old.set_nodeid(dst);
+                    cex.push(old);
+                }
+            }
+        }
+    }
+}
+
 impl Aig {
     fn gen_pattern(nodes: &[AigNode], s: &[AigEdge]) -> Vec<bool> {
         let mut r = thread_rng();

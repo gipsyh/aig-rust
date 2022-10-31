@@ -1,7 +1,8 @@
-use crate::{Aig, AigEdge};
+use crate::{Aig, AigEdge, AigNodeId};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
+    mem::take,
     ops::Index,
 };
 
@@ -279,6 +280,18 @@ impl Simulation {
     pub fn add_node(&mut self, sim: SimulationWords) {
         assert!(sim.nbit() == self.simulations[0].nbit());
         self.simulations.push(sim)
+    }
+}
+
+impl Simulation {
+    pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
+        let old = take(&mut self.simulations);
+        for (id, old_sim) in old.into_iter().enumerate() {
+            if let Some(dst) = node_map[id] {
+                assert_eq!(dst, self.simulations.len());
+                self.simulations.push(old_sim);
+            }
+        }
     }
 }
 

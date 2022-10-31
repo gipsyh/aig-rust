@@ -127,7 +127,7 @@ impl Aig {
         };
         ret.setup_levels();
         ret.setup_fanouts();
-        ret.setup_strash();
+        // ret.setup_strash();
         ret.setup_sat_solver();
         Ok(ret)
     }

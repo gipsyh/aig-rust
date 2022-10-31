@@ -59,8 +59,8 @@ impl Aig {
         }
         let mut reach = self.latch_init_equation();
         let mut frontier = reach;
-        let inputs = self.cinputs.clone();
-        let (latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
+        let mut inputs = self.cinputs.clone();
+        let (mut latch_map, mut transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
         let bads = self.bads.clone();
         for b in &bads[1..] {
@@ -70,6 +70,21 @@ impl Aig {
         loop {
             deep += 1;
             dbg!(deep, self.num_nodes());
+            if self.num_nodes() > 5000 {
+                let nodes_map = self.cleanup_redundant(&[frontier, reach, transition]);
+                reach.set_nodeid(nodes_map[reach.node_id()].unwrap());
+                frontier.set_nodeid(nodes_map[frontier.node_id()].unwrap());
+                transition.set_nodeid(nodes_map[transition.node_id()].unwrap());
+                bad.set_nodeid(nodes_map[bad.node_id()].unwrap());
+                for input in &mut inputs {
+                    *input = nodes_map[*input].unwrap();
+                }
+                for (x, y) in &mut latch_map {
+                    *x = nodes_map[*x].unwrap();
+                    *y = nodes_map[*y].unwrap();
+                }
+                println!("after cleanup: {}", self.num_nodes());
+            }
             if self.sat_solver.solve(&[bad, frontier]).is_some() {
                 return false;
             }

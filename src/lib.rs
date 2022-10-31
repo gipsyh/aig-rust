@@ -10,6 +10,8 @@ mod simulate;
 mod strash;
 mod symbolic_mc;
 
+use fraig::FrAig;
+use sat::SatSolver;
 use std::{
     assert_matches::assert_matches,
     cmp::Reverse,
@@ -19,9 +21,6 @@ use std::{
     slice::Iter,
     vec,
 };
-
-use fraig::FrAig;
-use sat::SatSolver;
 
 type AigNodeId = usize;
 
@@ -52,6 +51,10 @@ impl AigNode {
 
     fn is_cinput(&self) -> bool {
         matches!(self.typ, AigNodeType::LatchInput | AigNodeType::PrimeInput)
+    }
+
+    fn _is_prime_input(&self) -> bool {
+        matches!(self.typ, AigNodeType::PrimeInput)
     }
 
     fn fanin0(&self) -> AigEdge {
@@ -126,9 +129,7 @@ impl AigNode {
             level,
         }
     }
-}
 
-impl AigNode {
     fn strash_key(&self) -> (AigEdge, AigEdge) {
         (self.fanin0(), self.fanin1())
     }
@@ -169,6 +170,14 @@ impl AigEdge {
 
     pub fn compl(&self) -> bool {
         self.complement
+    }
+
+    pub fn set_nodeid(&mut self, nodeid: AigNodeId) {
+        self.id = nodeid;
+    }
+
+    pub fn set_compl(&mut self, compl: bool) {
+        self.complement = compl
     }
 }
 
@@ -225,6 +234,10 @@ impl Aig {
     // }
 
     pub fn new_input_node(&mut self) -> AigNodeId {
+        // let nodeid = match self.node_gc.alloc_input_node() {
+        //     Some(id) => id,
+        //     None => self.nodes.len(),
+        // };
         let nodeid = self.nodes.len();
         let input = AigNode::new_prime_input(nodeid);
         if let Some(fraig) = &mut self.fraig {
@@ -241,9 +254,9 @@ impl Aig {
         if fanin0.node_id() > fanin1.node_id() {
             swap(&mut fanin0, &mut fanin1);
         }
-        if let Some(id) = self.strash_map.get(&(fanin0, fanin1)) {
-            return AigEdge::new(*id, false);
-        }
+        // if let Some(id) = self.strash_map.get(&(fanin0, fanin1)) {
+        //     return AigEdge::new(*id, false);
+        // }
         if fanin0 == Aig::constant_edge(true) {
             return fanin1;
         }
@@ -331,7 +344,7 @@ impl Aig {
         for fanout in fanouts {
             let fanout_node_id = fanout.node_id();
             let fanout_node = &mut self.nodes[fanout_node_id];
-            self.strash_map.remove(&fanout_node.strash_key()).unwrap();
+            // self.strash_map.remove(&fanout_node.strash_key()).unwrap();
             let mut fanin0 = fanout_node.fanin0();
             let mut fanin1 = fanout_node.fanin1();
             assert!(fanin0.node_id() < fanin1.node_id());
@@ -353,13 +366,8 @@ impl Aig {
                 .max(self.nodes[fanin1.node_id()].level)
                 + 1;
             self.nodes[by].fanouts.push(fanout);
-            let strash_key = self.nodes[fanout_node_id].strash_key();
-            match self.strash_map.get(&strash_key) {
-                Some(_) => {}
-                None => {
-                    assert!(self.strash_map.insert(strash_key, fanout_node_id).is_none());
-                }
-            }
+            let _strash_key = self.nodes[fanout_node_id].strash_key();
+            // assert!(self.strash_map.insert(strash_key, fanout_node_id).is_none());
         }
     }
 }
@@ -402,9 +410,11 @@ impl Aig {
             .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
     }
 
-    pub fn fanin_logic_cone(&self, logic: AigEdge) -> Vec<bool> {
+    pub fn fanin_logic_cone(&self, logic: &[AigEdge]) -> Vec<bool> {
         let mut flag = vec![false; self.num_nodes()];
-        flag[logic.node_id()] = true;
+        for l in logic {
+            flag[l.node_id()] = true;
+        }
         for id in self.nodes_range_with_true().rev() {
             if flag[id] && self.nodes[id].is_and() {
                 flag[self.nodes[id].fanin0().node_id()] = true;
@@ -425,6 +435,70 @@ impl Aig {
             }
         }
         flag
+    }
+}
+
+impl Aig {
+    pub fn cleanup_redundant(&mut self, observes: &[AigEdge]) -> Vec<Option<AigNodeId>> {
+        let mut observe = observes.to_vec();
+        observe.extend(&self.bads);
+        observe.extend(&self.outputs);
+        for l in &self.latchs {
+            observe.push(l.next);
+        }
+        for i in &self.cinputs {
+            observe.push((*i).into());
+        }
+        let mut observe = self.fanin_logic_cone(&observe);
+        observe[0] = true;
+        self.num_ands = 0;
+        let old_nodes = take(&mut self.nodes);
+        self.sat_solver = Box::new(sat::abc_glucose::Solver::new());
+        let mut node_map = vec![None; old_nodes.len()];
+        for mut node in old_nodes {
+            if observe[node.id] {
+                node.fanouts.clear();
+                node_map[node.id] = Some(self.nodes.len());
+                node.id = self.nodes.len();
+                if node.is_and() {
+                    let fanin0 = node.fanin0();
+                    let fanin1 = node.fanin1();
+                    let fanin0 = AigEdge::new(node_map[fanin0.node_id()].unwrap(), fanin0.compl());
+                    let fanin1 = AigEdge::new(node_map[fanin1.node_id()].unwrap(), fanin1.compl());
+                    node.set_fanin0(fanin0);
+                    node.set_fanin1(fanin1);
+                    self.nodes[fanin0.node_id()]
+                        .fanouts
+                        .push(AigEdge::new(node.id, fanin0.compl()));
+                    self.nodes[fanin1.node_id()]
+                        .fanouts
+                        .push(AigEdge::new(node.id, fanin1.compl()));
+                    self.num_ands += 1;
+                    self.sat_solver
+                        .add_and_node(node.id, node.fanin0(), node.fanin1())
+                } else if node.is_cinput() {
+                    self.sat_solver.add_input_node(node.id);
+                }
+                self.nodes.push(node);
+            }
+        }
+        self.fraig.as_mut().unwrap().cleanup_redundant(&node_map);
+        for latch in &mut self.latchs {
+            latch.input = node_map[latch.input].unwrap();
+            latch
+                .next
+                .set_nodeid(node_map[latch.next.node_id()].unwrap());
+        }
+        for cin in &mut self.cinputs {
+            *cin = node_map[*cin].unwrap();
+        }
+        for out in &mut self.outputs {
+            out.set_nodeid(node_map[out.node_id()].unwrap());
+        }
+        for bad in &mut self.bads {
+            bad.set_nodeid(node_map[bad.node_id()].unwrap());
+        }
+        node_map
     }
 }
 
