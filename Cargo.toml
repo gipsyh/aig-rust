@@ -9,4 +9,4 @@ edition = "2021"
 aiger = { git = "https://github.com/gipsyh/aiger-rust.git" }
 rand = "0.8.5"
 minisat = "0.4.4"
-abc-glucose = { path = "../abc-glucose" }
+abc-glucose = { git = "https://github.com/gipsyh/abc-glucose.git" }
