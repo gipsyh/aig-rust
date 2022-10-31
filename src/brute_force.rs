@@ -50,7 +50,7 @@ impl Aig {
             dbg!(deep);
             let mut new_frontier = HashSet::new();
             for r in &frontier {
-                for input in Self::input_iter(self.num_inputs) {
+                for input in Self::input_iter(self.inputs.len()) {
                     new_frontier.insert(self.get_value(&input, r));
                 }
             }

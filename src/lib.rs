@@ -14,7 +14,6 @@ mod symbolic_mc;
 use fraig::FrAig;
 use sat::SatSolver;
 use std::{
-    assert_matches::assert_matches,
     cmp::Reverse,
     collections::{BinaryHeap, HashMap},
     mem::{swap, take},
@@ -54,8 +53,12 @@ impl AigNode {
         matches!(self.typ, AigNodeType::LatchInput | AigNodeType::PrimeInput)
     }
 
-    fn _is_prime_input(&self) -> bool {
+    fn is_prime_input(&self) -> bool {
         matches!(self.typ, AigNodeType::PrimeInput)
+    }
+
+    fn is_latch_input(&self) -> bool {
+        matches!(self.typ, AigNodeType::LatchInput)
     }
 
     fn fanin0(&self) -> AigEdge {
@@ -202,8 +205,6 @@ pub struct Aig {
     latchs: Vec<AigLatch>,
     outputs: Vec<AigEdge>,
     bads: Vec<AigEdge>,
-    num_inputs: usize,
-    num_latchs: usize,
     num_ands: usize,
     strash_map: HashMap<(AigEdge, AigEdge), AigNodeId>,
     fraig: Option<FrAig>,
@@ -246,7 +247,6 @@ impl Aig {
         }
         self.nodes.push(input);
         self.inputs.push(nodeid);
-        self.num_inputs += 1;
         self.sat_solver.add_input_node(nodeid);
         nodeid
     }
@@ -317,8 +317,7 @@ impl Aig {
         self.new_and_node(edge1, edge2)
     }
 
-    pub fn new_and_nodes(&mut self, edges: Vec<AigEdge>) -> AigEdge {
-        assert!(edges.len() > 1);
+    pub fn new_and_nodes<I: IntoIterator<Item = AigEdge>>(&mut self, edges: I) -> AigEdge {
         let mut heap = BinaryHeap::new();
         for edge in edges {
             heap.push(Reverse((self.nodes[edge.node_id()].level, edge)));
@@ -506,17 +505,11 @@ impl Aig {
 
 impl Aig {
     pub fn latch_init_equation(&mut self) -> AigEdge {
-        let mut equals = Vec::new();
-        let latchs = self.latchs.clone();
-        for AigLatch {
-            input,
-            next: _,
-            init,
-        } in latchs
-        {
-            let init_equal_node = self.new_equal_node((input).into(), Aig::constant_edge(init));
-            equals.push(init_equal_node);
-        }
+        let equals: Vec<AigEdge> = self
+            .latchs
+            .iter()
+            .map(|l| AigEdge::new(l.input, !l.init))
+            .collect();
         self.new_and_nodes(equals)
     }
 
@@ -524,24 +517,21 @@ impl Aig {
         &mut self,
     ) -> (Vec<(AigNodeId, AigNodeId)>, AigEdge) {
         let latchs = take(&mut self.latchs);
-        self.num_latchs = 0;
-        let mut ret = Vec::new();
         let mut equals = Vec::new();
-        for AigLatch {
-            input,
-            next,
-            init: _,
-        } in latchs
-        {
-            assert_matches!(self.nodes[input].typ, AigNodeType::LatchInput);
-            self.nodes[input].typ = AigNodeType::PrimeInput;
-            self.num_inputs += 1;
-            let inode = self.new_input_node();
-            ret.push((inode, input));
-            let equal_node = self.new_equal_node(next, inode.into());
-            equals.push(equal_node);
-        }
-        (ret, self.new_and_nodes(equals))
+        (
+            latchs
+                .iter()
+                .map(|l| {
+                    assert!(self.nodes[l.input].is_latch_input());
+                    self.nodes[l.input].typ = AigNodeType::PrimeInput;
+                    let inode = self.new_input_node();
+                    let equal_node = self.new_equal_node(l.next, inode.into());
+                    equals.push(equal_node);
+                    (inode, l.input)
+                })
+                .collect(),
+            self.new_and_nodes(equals),
+        )
     }
 }
 

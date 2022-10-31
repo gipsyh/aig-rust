@@ -81,9 +81,13 @@ impl FrAig {
                 assert!(!compl);
                 if let Some(a) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
                     dbg!(rep_lazy);
-                    println!("{} {}",self.simulation[rep_lazy.node_id()], hash_value);
+                    println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
                     dbg!(&a);
-                    println!("{} {}", self.simulation[a[0].node_id()], self.simulation[a[0].node_id()].abs_hash_value());
+                    println!(
+                        "{} {}",
+                        self.simulation[a[0].node_id()],
+                        self.simulation[a[0].node_id()].abs_hash_value()
+                    );
                     panic!()
                 }
             }

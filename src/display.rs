@@ -24,7 +24,7 @@ impl Display for AigEdge {
 impl Display for Aig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "==================")?;
-        writeln!(f, "input num: {}", self.num_inputs,)?;
+        writeln!(f, "input num: {}", self.inputs.len(),)?;
         writeln!(f, "latch num: {}", self.latchs.len())?;
         writeln!(f, "output num: {}", self.outputs.len())?;
         writeln!(f, "and num: {}", self.num_ands)?;

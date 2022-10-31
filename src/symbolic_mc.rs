@@ -22,9 +22,9 @@ impl EliminateOrder {
             .collect();
         let mut min_now = expect[0];
         let mut ret = 0;
-        for i in 1..expect.len() {
-            if expect[i] < min_now {
-                min_now = expect[i];
+        for (i, e) in expect.iter().enumerate().skip(1) {
+            if *e < min_now {
+                min_now = *e;
                 ret = i;
             }
         }
@@ -127,10 +127,7 @@ impl Aig {
             let mut equation = self.new_and_node(frontier, transition);
             let mut eliminate_order = EliminateOrder::new(inputs.clone());
             while let Some(mut enode) = eliminate_order.get_node(self, &[equation]) {
-                assert_matches!(
-                    self.nodes[enode].typ,
-                    crate::AigNodeType::PrimeInput
-                );
+                assert_matches!(self.nodes[enode].typ, crate::AigNodeType::PrimeInput);
                 {
                     let nodes_map =
                         self.cleanup_redundant(&[frontier, reach, transition, bad, equation]);

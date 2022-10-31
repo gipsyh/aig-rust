@@ -116,8 +116,6 @@ impl Aig {
             latchs,
             outputs,
             bads,
-            num_inputs: header.i,
-            num_latchs: header.l,
             num_ands: header.a,
             strash_map: HashMap::new(),
             fraig: None,
