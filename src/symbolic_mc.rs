@@ -13,10 +13,8 @@ impl Aig {
             bad = self.new_or_node(bad, *b);
         }
         let mut eliminate = Vec::new();
-        for i in &self.cinputs {
-            if let crate::AigNodeType::PrimeInput = self.nodes[*i].typ {
-                eliminate.push(*i);
-            }
+        for i in &self.inputs {
+            eliminate.push(*i);
         }
         let (mut latch_map, transition) = self.transfer_latch_outputs_into_pinputs();
         for (x, y) in &mut latch_map {
@@ -59,7 +57,10 @@ impl Aig {
         }
         let mut reach = self.latch_init_equation();
         let mut frontier = reach;
-        let mut inputs = self.cinputs.clone();
+        let mut inputs = self.inputs.clone();
+        for l in self.latchs.iter() {
+            inputs.push(l.input);
+        }
         let (mut latch_map, mut transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
         let bads = self.bads.clone();

@@ -1,6 +1,7 @@
 #![feature(assert_matches, ptr_metadata, unchecked_math, test)]
 
 mod aiger;
+mod brute_force;
 mod display;
 mod eliminate;
 mod fraig;
@@ -197,7 +198,7 @@ impl AigLatch {
 #[derive(Debug)]
 pub struct Aig {
     nodes: Vec<AigNode>,
-    cinputs: Vec<AigNodeId>,
+    inputs: Vec<AigNodeId>,
     latchs: Vec<AigLatch>,
     outputs: Vec<AigEdge>,
     bads: Vec<AigEdge>,
@@ -244,7 +245,7 @@ impl Aig {
             fraig.new_input_node(nodeid);
         }
         self.nodes.push(input);
-        self.cinputs.push(nodeid);
+        self.inputs.push(nodeid);
         self.num_inputs += 1;
         self.sat_solver.add_input_node(nodeid);
         nodeid
@@ -389,9 +390,9 @@ impl Aig {
         todo!()
     }
 
-    pub fn cinputs_iter(&self) -> impl Iterator<Item = &AigNode> {
-        self.cinputs.iter().map(|id| &self.nodes[*id])
-    }
+    // pub fn cinputs_iter(&self) -> impl Iterator<Item = &AigNode> {
+    //     self.cinputs.iter().map(|id| &self.nodes[*id])
+    // }
 
     // pub fn cinputs_iter_mut(&mut self) -> impl Iterator<Item = &mut AigNode> {
     //     let a = self.cinputs.clone();
@@ -445,8 +446,9 @@ impl Aig {
         observe.extend(&self.outputs);
         for l in &self.latchs {
             observe.push(l.next);
+            observe.push(l.input.into());
         }
-        for i in &self.cinputs {
+        for i in &self.inputs {
             observe.push((*i).into());
         }
         let mut observe = self.fanin_logic_cone(&observe);
@@ -489,8 +491,8 @@ impl Aig {
                 .next
                 .set_nodeid(node_map[latch.next.node_id()].unwrap());
         }
-        for cin in &mut self.cinputs {
-            *cin = node_map[*cin].unwrap();
+        for input in &mut self.inputs {
+            *input = node_map[*input].unwrap();
         }
         for out in &mut self.outputs {
             out.set_nodeid(node_map[out.node_id()].unwrap());

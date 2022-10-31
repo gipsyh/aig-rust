@@ -67,7 +67,7 @@ impl Aig {
         nodes_remaining[0].write(AigNode::new_true(0));
         let mut outputs = Vec::new();
         let mut bads = Vec::new();
-        let mut cinputs = Vec::new();
+        let mut inputs = Vec::new();
         let mut latchs = Vec::new();
         for obj in aiger.records() {
             let obj = obj.unwrap();
@@ -75,7 +75,7 @@ impl Aig {
                 aiger::Aiger::Input(input) => {
                     let id = input.0 / 2;
                     nodes_remaining[id].write(AigNode::new_prime_input(id));
-                    cinputs.push(id);
+                    inputs.push(id);
                 }
                 aiger::Aiger::Latch {
                     output,
@@ -89,7 +89,6 @@ impl Aig {
                         AigEdge::new(input.0 / 2, input.0 & 0x1 != 0),
                         init,
                     ));
-                    cinputs.push(id);
                 }
                 aiger::Aiger::Output(o) => outputs.push(AigEdge::new(o.0 / 2, o.0 & 0x1 != 0)),
                 aiger::Aiger::BadState(b) => bads.push(AigEdge::new(b.0 / 2, b.0 & 0x1 != 0)),
@@ -113,7 +112,7 @@ impl Aig {
         unsafe { nodes.set_len(header.i + header.l + header.a + 1) };
         let mut ret = Self {
             nodes,
-            cinputs,
+            inputs,
             latchs,
             outputs,
             bads,

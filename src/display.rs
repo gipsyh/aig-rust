@@ -30,8 +30,8 @@ impl Display for Aig {
         writeln!(f, "and num: {}", self.num_ands)?;
         writeln!(f, "bad state num: {}", self.bads.len())?;
         writeln!(f, "------------------")?;
-        write!(f, "cinputs:")?;
-        for ci in &self.cinputs {
+        write!(f, "prime inputs:")?;
+        for ci in &self.inputs {
             write!(f, " {}", self.nodes[*ci])?;
         }
         writeln!(f, "\n------------------")?;
