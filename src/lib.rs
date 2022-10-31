@@ -411,7 +411,7 @@ impl Aig {
             .filter(|node| matches!(node.typ, AigNodeType::And(_, _)))
     }
 
-    pub fn fanin_logic_cone(&self, logic: &[AigEdge]) -> Vec<bool> {
+    pub fn fanin_logic_cone<'a, I: IntoIterator<Item = &'a AigEdge>>(&self, logic: I) -> Vec<bool> {
         let mut flag = vec![false; self.num_nodes()];
         for l in logic {
             flag[l.node_id()] = true;

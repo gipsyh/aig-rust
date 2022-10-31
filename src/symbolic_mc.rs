@@ -1,5 +1,55 @@
-use crate::Aig;
+use crate::{Aig, AigEdge, AigNodeId};
 use std::{assert_matches::assert_matches, mem::swap};
+
+struct EliminateOrder {
+    inputs: Vec<AigNodeId>,
+}
+
+impl EliminateOrder {
+    fn new(inputs: Vec<AigNodeId>) -> Self {
+        Self { inputs }
+    }
+
+    fn get_node(&mut self, aig: &Aig, observes: &[AigEdge]) -> Option<AigNodeId> {
+        let fanin = aig.fanin_logic_cone(observes);
+        if self.inputs.is_empty() {
+            return None;
+        }
+        let expect: Vec<usize> = self
+            .inputs
+            .iter()
+            .map(|input| aig.calculate_expect_size(*input, &fanin))
+            .collect();
+        let mut min_now = expect[0];
+        let mut ret = 0;
+        for i in 1..expect.len() {
+            if expect[i] < min_now {
+                min_now = expect[i];
+                ret = i;
+            }
+        }
+        Some(self.inputs.remove(ret))
+    }
+
+    fn cleanup_redundant(&mut self, nodes_map: &[Option<AigNodeId>]) {
+        for input in self.inputs.iter_mut() {
+            *input = nodes_map[*input].unwrap();
+        }
+    }
+}
+
+impl Aig {
+    fn calculate_expect_size(&self, input: AigNodeId, ob_cone: &[bool]) -> usize {
+        let fanout = self.fanout_logic_cone(input.into());
+        let mut ret = 0;
+        for i in 0..self.num_nodes() {
+            if ob_cone[i] && fanout[i] {
+                ret += 1;
+            }
+        }
+        ret
+    }
+}
 
 impl Aig {
     pub fn symbolic_mc_back(&mut self) -> bool {
@@ -71,29 +121,37 @@ impl Aig {
         loop {
             deep += 1;
             dbg!(deep, self.num_nodes());
-            if self.num_nodes() > 5000 {
-                let nodes_map = self.cleanup_redundant(&[frontier, reach, transition]);
-                reach.set_nodeid(nodes_map[reach.node_id()].unwrap());
-                frontier.set_nodeid(nodes_map[frontier.node_id()].unwrap());
-                transition.set_nodeid(nodes_map[transition.node_id()].unwrap());
-                bad.set_nodeid(nodes_map[bad.node_id()].unwrap());
-                for input in &mut inputs {
-                    *input = nodes_map[*input].unwrap();
-                }
-                for (x, y) in &mut latch_map {
-                    *x = nodes_map[*x].unwrap();
-                    *y = nodes_map[*y].unwrap();
-                }
-                println!("after cleanup: {}", self.num_nodes());
-            }
             if self.sat_solver.solve(&[bad, frontier]).is_some() {
                 return false;
             }
             let mut equation = self.new_and_node(frontier, transition);
-            for iid in &inputs {
-                assert_matches!(self.nodes[*iid].typ, crate::AigNodeType::PrimeInput);
-                equation = self.eliminate_input(*iid, vec![equation])[0];
-                // dbg!(self.num_nodes());
+            let mut eliminate_order = EliminateOrder::new(inputs.clone());
+            while let Some(mut enode) = eliminate_order.get_node(self, &[equation]) {
+                assert_matches!(
+                    self.nodes[enode].typ,
+                    crate::AigNodeType::PrimeInput
+                );
+                {
+                    let nodes_map =
+                        self.cleanup_redundant(&[frontier, reach, transition, bad, equation]);
+                    reach.set_nodeid(nodes_map[reach.node_id()].unwrap());
+                    frontier.set_nodeid(nodes_map[frontier.node_id()].unwrap());
+                    transition.set_nodeid(nodes_map[transition.node_id()].unwrap());
+                    bad.set_nodeid(nodes_map[bad.node_id()].unwrap());
+                    equation.set_nodeid(nodes_map[equation.node_id()].unwrap());
+                    eliminate_order.cleanup_redundant(&nodes_map);
+                    enode = nodes_map[enode].unwrap();
+                    for input in &mut inputs {
+                        *input = nodes_map[*input].unwrap();
+                    }
+                    for (x, y) in &mut latch_map {
+                        *x = nodes_map[*x].unwrap();
+                        *y = nodes_map[*y].unwrap();
+                    }
+                    println!("after cleanup: {}", self.num_nodes());
+                }
+                equation = self.eliminate_input(enode, vec![equation])[0];
+                dbg!(self.num_nodes());
             }
             frontier = self.migrate_logic(&latch_map, equation);
             let reach_new = self.new_or_node(reach, frontier);
