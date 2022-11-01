@@ -90,7 +90,7 @@ impl FrAig {
                     //     self.simulation[a[0].node_id()],
                     //     self.simulation[a[0].node_id()].abs_hash_value()
                     // );
-                    panic!()
+                    // panic!()
                 }
             }
         }
@@ -124,7 +124,6 @@ impl FrAig {
         solver: &mut dyn SatSolver,
         fanin0: AigEdge,
         fanin1: AigEdge,
-        new_node: AigNodeId,
     ) -> Option<AigEdge> {
         unsafe { TOTAL_SIMAND += 1 };
         let sim = self.simulation.sim_and(fanin0, fanin1);
@@ -160,7 +159,6 @@ impl FrAig {
                 None
             }
             None => {
-                assert_eq!(self.simulation.num_nodes(), new_node);
                 let new_edge = AigEdge::new(self.simulation.num_nodes(), sim.compl());
                 unsafe { TOTAL_SIMAND_INSERT += 1 };
                 assert!(self

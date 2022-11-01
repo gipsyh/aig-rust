@@ -251,6 +251,7 @@ impl Aig {
         nodeid
     }
 
+    #[inline]
     pub fn new_and_node(&mut self, mut fanin0: AigEdge, mut fanin1: AigEdge) -> AigEdge {
         if fanin0.node_id() > fanin1.node_id() {
             swap(&mut fanin0, &mut fanin1);
@@ -282,7 +283,6 @@ impl Aig {
                     self.sat_solver.as_mut(),
                     fanin0,
                     fanin1,
-                    nodeid,
                 ) {
                     return and_edge;
                 }

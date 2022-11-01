@@ -24,6 +24,7 @@ impl EliminateOrder {
             .iter()
             .map(|input| aig.calculate_expect_size(*input, &fanin))
             .collect();
+        // dbg!(&expect);
         let mut min_now = expect[0];
         let mut ret = 0;
         for (i, e) in expect.iter().enumerate().skip(1) {
