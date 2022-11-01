@@ -5,6 +5,8 @@ pub static mut TOTAL_SIMAND: usize = 0;
 pub static mut TOTAL_SIMAND_INSERT: usize = 0;
 pub static mut TOTAL_RESIM: usize = 0;
 pub static mut TOTAL_BUG: usize = 0;
+pub static mut TOTAL_ADD_PATTERN: usize = 0;
+pub static mut TOTAL_FRAIG_ADD_SAT: usize = 0;
 struct EliminateOrder {
     inputs: Vec<AigNodeId>,
 }
@@ -165,6 +167,8 @@ impl Aig {
                 dbg!(unsafe { TOTAL_SIMAND_INSERT });
                 dbg!(unsafe { TOTAL_RESIM });
                 dbg!(unsafe { TOTAL_BUG });
+                dbg!(unsafe { TOTAL_ADD_PATTERN });
+                dbg!(unsafe { TOTAL_FRAIG_ADD_SAT });
                 dbg!(self.fraig.as_ref().unwrap().nword());
                 return true;
             }

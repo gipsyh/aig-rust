@@ -32,15 +32,15 @@ impl Solver {
 impl SatSolver for Solver {
     fn add_input_node(&mut self, node: AigNodeId) {
         let var = self.solver.add_var();
-        debug_assert_eq!(var, Self::node_to_var(node));
+        assert_eq!(var, Self::node_to_var(node));
     }
 
     fn add_and_node(&mut self, node: AigNodeId, fanin0: AigEdge, fanin1: AigEdge) {
-        debug_assert!(fanin0.node_id() < fanin1.node_id());
-        debug_assert!(fanin1.node_id() < node);
+        assert!(fanin0.node_id() < fanin1.node_id());
+        assert!(fanin1.node_id() < node);
         let node = Self::node_to_var(node);
         let var = self.solver.add_var();
-        debug_assert_eq!(var, node);
+        assert_eq!(var, node);
         assert_eq!(var, node);
         self.solver
             .set_fanin(node, Self::edge_to_lit(fanin0), Self::edge_to_lit(fanin1));

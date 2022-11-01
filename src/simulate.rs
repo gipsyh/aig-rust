@@ -34,7 +34,7 @@ fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
 }
 
 #[inline]
-fn _simd_hash_function(hash: &mut SimulationWordsHash, word: &SimdSimulationWord) {
+fn simd_hash_function(hash: &mut SimulationWordsHash, word: &SimdSimulationWord) {
     static SIMD_16: SimdSimulationWord = Simd::from_array([16; SimdSimulationWord::LANES]);
     static SIMD_MUL: SimdSimulationWord = Simd::from_array([0x45d9f3b; SimdSimulationWord::LANES]);
     static SIMD_ADD: SimdSimulationWord = Simd::from_array([0x9e3779b9; SimdSimulationWord::LANES]);
@@ -106,7 +106,7 @@ impl SimulationWords {
 
 impl SimulationWords {
     pub fn nword(&self) -> usize {
-        self.simd_words.len() * 64 + self.nword_remain
+        self.simd_words.len() * SimdSimulationWord::LANES + self.nword_remain
     }
 
     pub fn abs_hash_value(&self) -> SimulationWordsHash {
@@ -138,6 +138,12 @@ impl SimulationWords {
             self.simd_words.push(take(&mut self.remain_words));
         }
     }
+
+    fn push_simd_word(&mut self, word: SimdSimulationWord) {
+        assert!(self.nword_remain == 0);
+        simd_hash_function(&mut self.hash, &if self.compl { !word } else { word });
+        self.simd_words.push(word);
+    }
 }
 
 impl Display for SimulationWords {
@@ -154,20 +160,20 @@ impl Display for SimulationWords {
     }
 }
 
-struct RandomWordGenerator {
+pub struct RandomWordGenerator {
     rng: ThreadRng,
 }
 
 impl RandomWordGenerator {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { rng: thread_rng() }
     }
 
-    fn rand_word(&mut self) -> SimulationWord {
+    pub fn rand_word(&mut self) -> SimulationWord {
         self.rng.gen()
     }
 
-    fn rand_simd_word(&mut self) -> SimdSimulationWord {
+    pub fn rand_simd_word(&mut self) -> SimdSimulationWord {
         let mut ret = SimdSimulationWord::default();
         for word in ret.as_mut_array() {
             *word = self.rng.gen()
@@ -256,6 +262,13 @@ impl Simulation {
         assert_eq!(pattern.len(), self.simulations.len());
         for (i, p) in pattern.iter().enumerate() {
             self.simulations[i].push_word(*p);
+        }
+    }
+
+    pub fn add_simd_word(&mut self, simd_word: Vec<SimdSimulationWord>) {
+        assert_eq!(simd_word.len(), self.simulations.len());
+        for (i, p) in simd_word.iter().enumerate() {
+            self.simulations[i].push_simd_word(*p);
         }
     }
 

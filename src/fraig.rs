@@ -3,7 +3,10 @@ use crate::{
     simulate::{
         Simulation, SimulationWord, SimulationWords, SimulationWordsHash, SIMULATION_TRUE_WORD,
     },
-    symbolic_mc::{TOTAL_BUG, TOTAL_RESIM, TOTAL_SIMAND, TOTAL_SIMAND_INSERT},
+    symbolic_mc::{
+        TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM, TOTAL_SIMAND,
+        TOTAL_SIMAND_INSERT,
+    },
     Aig, AigEdge, AigNode, AigNodeId,
 };
 use rand::{thread_rng, Rng};
@@ -17,14 +20,12 @@ use std::{
 pub struct FrAig {
     simulation: Simulation,
     sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
-    lazy_cex: Vec<Vec<AigEdge>>,
+    lazy_cex: Vec<SimulationWord>,
+    ncex: usize,
 }
 
 impl FrAig {
-    fn generate_words_from_pattern(
-        pattern: Vec<Vec<AigEdge>>,
-        nodes: &[AigNode],
-    ) -> Vec<SimulationWord> {
+    fn default_lazy_cexs(nodes: &[AigNode]) -> Vec<SimulationWord> {
         let mut rng = thread_rng();
         let mut ret = Vec::new();
         ret.push(SIMULATION_TRUE_WORD);
@@ -47,68 +48,73 @@ impl FrAig {
                 ret.push(rng.gen())
             }
         }
-        for (nbit, p) in pattern.iter().enumerate() {
-            for e in p {
-                if e.compl() {
-                    ret[e.node_id()] &= !(1 << nbit);
-                } else {
-                    ret[e.node_id()] |= 1 << nbit;
-                }
-            }
-        }
-        for i in 1..nodes.len() {
-            if nodes[i].is_and() {
-                let fanin0 = nodes[i].fanin0();
-                let fanin1 = nodes[i].fanin1();
-                let v0 = if fanin0.compl() {
-                    !ret[fanin0.node_id()]
-                } else {
-                    ret[fanin0.node_id()]
-                };
-                let v1 = if fanin1.compl() {
-                    !ret[fanin1.node_id()]
-                } else {
-                    ret[fanin1.node_id()]
-                };
-                ret[i] = v0 & v1;
-            }
-        }
         ret
     }
 
     fn submit_lazy(&mut self, nodes: &[AigNode]) {
-        let words = Self::generate_words_from_pattern(take(&mut self.lazy_cex), nodes);
-        self.simulation.add_words(words);
+        self.simulation
+            .add_words(replace(&mut self.lazy_cex, Self::default_lazy_cexs(nodes)));
+        self.ncex = 0;
         let old_map = take(&mut self.sim_map);
         for (_, rep_lazys) in old_map {
             for rep_lazy in rep_lazys {
                 let (hash_value, compl) = self.simulation.abs_hash_value(rep_lazy);
                 assert!(!compl);
-                if let Some(a) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
+                if let Some(_) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
                     unsafe { TOTAL_BUG += 1 };
-                    dbg!(rep_lazy);
-                    println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
-                    dbg!(&a);
-                    println!(
-                        "{} {}",
-                        self.simulation[a[0].node_id()],
-                        self.simulation[a[0].node_id()].abs_hash_value()
-                    );
-                    panic!()
+                    // dbg!(rep_lazy);
+                    // println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
+                    // dbg!(&a);
+                    // println!(
+                    //     "{} {}",
+                    //     self.simulation[a[0].node_id()],
+                    //     self.simulation[a[0].node_id()].abs_hash_value()
+                    // );
+                    // panic!()
                 }
             }
         }
     }
 
+    fn lazy_resimulate(&mut self, nodes: &[AigNode]) {
+        for node in nodes.iter().skip(1) {
+            if node.is_and() {
+                let fanin0 = node.fanin0();
+                let fanin1 = node.fanin1();
+                let v0 = if fanin0.compl() {
+                    !self.lazy_cex[fanin0.node_id()]
+                } else {
+                    self.lazy_cex[fanin0.node_id()]
+                };
+                let v1 = if fanin1.compl() {
+                    !self.lazy_cex[fanin1.node_id()]
+                } else {
+                    self.lazy_cex[fanin1.node_id()]
+                };
+                self.lazy_cex[node.node_id()] = v0 & v1;
+            }
+        }
+    }
+
     fn add_pattern(&mut self, nodes: &[AigNode], pattern: &[AigEdge]) {
-        self.lazy_cex.push(pattern.to_vec());
-        if self.lazy_cex.len() == SimulationWord::BITS as usize {
+        unsafe { TOTAL_ADD_PATTERN += 1 };
+        for e in pattern {
+            if e.compl() {
+                self.lazy_cex[e.node_id()] &= !(1 << self.ncex);
+            } else {
+                self.lazy_cex[e.node_id()] |= 1 << self.ncex;
+            }
+        }
+        self.lazy_resimulate(nodes);
+        self.ncex += 1;
+        if self.ncex == SimulationWord::BITS as usize {
             self.submit_lazy(nodes)
         }
     }
 
     pub fn new_input_node(&mut self, node: AigNodeId) {
         assert_eq!(self.simulation.num_nodes(), node);
+        assert_eq!(self.lazy_cex.len(), node);
         let mut sim = SimulationWords::new(self.simulation.nword());
         while self.sim_map.contains_key(&sim.abs_hash_value()) {
             sim = SimulationWords::new(self.simulation.nword());
@@ -119,6 +125,8 @@ impl FrAig {
             .insert(sim.abs_hash_value(), vec![edge])
             .is_none());
         self.simulation.add_node(sim);
+        let mut rng = thread_rng();
+        self.lazy_cex.push(rng.gen());
     }
 
     #[inline]
@@ -131,11 +139,29 @@ impl FrAig {
     ) -> Option<AigEdge> {
         unsafe { TOTAL_SIMAND += 1 };
         let sim = self.simulation.sim_and(fanin0, fanin1);
+        let lazy_value_closure = |e: AigEdge, lazy: &Vec<SimulationWord>| {
+            if e.compl() {
+                !lazy[e.node_id()]
+            } else {
+                lazy[e.node_id()]
+            }
+        };
+        let new_and_lazy_closure = |lazy: &Vec<SimulationWord>| {
+            let fanin0_lazy = lazy_value_closure(fanin0, lazy);
+            let fanin1_lazy = lazy_value_closure(fanin1, lazy);
+            fanin0_lazy & fanin1_lazy
+        };
         match self.sim_map.get(&sim.abs_hash_value()) {
             Some(cans) => {
                 let cans = cans.clone();
                 for can in cans {
                     let can = if sim.compl() { !can } else { can };
+                    if lazy_value_closure(can, &self.lazy_cex)
+                        != new_and_lazy_closure(&self.lazy_cex)
+                    {
+                        continue;
+                    }
+                    unsafe { TOTAL_FRAIG_ADD_SAT += 1 };
                     match solver.equivalence_check_xy_z(fanin0, fanin1, can) {
                         Some(s) => self.add_pattern(nodes, s),
                         None => {
@@ -160,6 +186,7 @@ impl FrAig {
                 };
                 unsafe { TOTAL_SIMAND_INSERT += 1 };
                 self.simulation.add_node(sim);
+                self.lazy_cex.push(new_and_lazy_closure(&self.lazy_cex));
                 None
             }
             None => {
@@ -170,6 +197,7 @@ impl FrAig {
                     .insert(sim.abs_hash_value(), vec![new_edge])
                     .is_none());
                 self.simulation.add_node(sim);
+                self.lazy_cex.push(new_and_lazy_closure(&self.lazy_cex));
                 None
             }
         }
@@ -199,13 +227,11 @@ impl FrAig {
         for should in should_remove {
             assert!(self.sim_map.remove(&should).is_some());
         }
-        for cex in &mut self.lazy_cex {
-            let old_cex = take(cex);
-            for mut old in old_cex {
-                if let Some(dst) = node_map[old.node_id()] {
-                    old.set_nodeid(dst);
-                    cex.push(old);
-                }
+        let old = take(&mut self.lazy_cex);
+        for (id, old_sim) in old.into_iter().enumerate() {
+            if let Some(dst) = node_map[id] {
+                assert_eq!(dst, self.lazy_cex.len());
+                self.lazy_cex.push(old_sim);
             }
         }
     }
@@ -292,7 +318,8 @@ impl Aig {
                 self.fraig = Some(FrAig {
                     simulation,
                     sim_map,
-                    lazy_cex: Vec::new(),
+                    lazy_cex: FrAig::default_lazy_cexs(&self.nodes),
+                    ncex: 0,
                 });
                 dbg!(self.fraig.as_ref().unwrap().nword());
                 return;
@@ -319,7 +346,6 @@ impl Aig {
 #[cfg(test)]
 mod tests {
     use crate::Aig;
-    use std::simd::Simd;
 
     #[test]
     fn test1() {
@@ -330,15 +356,8 @@ mod tests {
 
     #[test]
     fn test2() {
-        let a = [1, 2, 3, 4];
-        let b = [2, 1, 30, 1];
-        let a: Simd<i32, 4> = std::simd::Simd::from_slice(&a);
-        let b: Simd<i32, 4> = std::simd::Simd::from_slice(&b);
-        let c = a & b;
-        dbg!(&c);
-        // dbg!(c);
-        // let aig = Aig::from_file("aigs/cec2.aag").unwrap();
-        // // aig.fraig();
-        // assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
+        let aig = Aig::from_file("aigs/cec2.aag").unwrap();
+        // aig.fraig();
+        assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
     }
 }
