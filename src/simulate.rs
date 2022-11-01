@@ -7,17 +7,27 @@ use std::{
     ops::Index,
 };
 
-pub type SimulationWord = u32;
+pub type SimulationWord = u64;
 
 pub const SIMULATION_TRUE_WORD: SimulationWord = SimulationWord::MAX;
 
-pub type SimulationWordsHash = u64;
+pub type SimulationWordsHash = SimulationWord;
 
-const HASH_MUL: SimulationWordsHash = 4294967311;
+// const HASH_MUL: SimulationWordsHash = 4294967311;
 
-// const HASH_MUL_PRIMES: [SimulationWord; 16] = [
-//     1291, 1699, 1999, 2357, 2953, 3313, 3907, 4177, 4831, 5147, 5647, 6343, 6899, 7103, 7873, 8147,
-// ];
+// fn hash_function(hash: &mut SimulationWordsHash, word: SimulationWord) {
+//     *hash = unsafe {
+//         hash.unchecked_mul(HASH_MUL)
+//             .unchecked_add(word as SimulationWordsHash)
+//     }
+// }
+
+fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
+    word = ((word >> 16) ^ word) * 0x45d9f3b;
+    word = ((word >> 16) ^ word) * 0x45d9f3b;
+    word = (word >> 16) ^ word;
+    *hash = *hash ^ (word + 0x9e3779b9 + (*hash << 6) + (*hash >> 2));
+}
 
 #[derive(Clone, Debug)]
 pub struct SimulationWords {
@@ -32,23 +42,14 @@ impl SimulationWords {
         self.hash = 0;
         self.compl = self.words[0] & 1 > 0;
         for id in 0..self.words.len() {
-            // self.hash ^= unsafe {
-            //     if self.compl {
-            //         !self.words[id]
-            //     } else {
-            //         self.words[id]
-            //     }
-            //     .unchecked_mul(HASH_MUL_PRIMES[id & 0xf] as SimulationWord)
-            // };
-            self.hash = unsafe {
-                self.hash
-                    .unchecked_mul(HASH_MUL)
-                    .unchecked_add(if self.compl {
-                        !self.words[id]
-                    } else {
-                        self.words[id]
-                    } as SimulationWordsHash)
-            }
+            hash_function(
+                &mut self.hash,
+                if self.compl {
+                    !self.words[id]
+                } else {
+                    self.words[id]
+                },
+            );
         }
     }
 
@@ -93,15 +94,7 @@ impl SimulationWords {
     }
 
     fn push_word(&mut self, word: SimulationWord) {
-        // self.hash ^= unsafe {
-        //     if self.compl { !word } else { word }
-        //         .unchecked_mul(HASH_MUL_PRIMES[self.words.len() & 0xf] as SimulationWord)
-        // };
-        self.hash = unsafe {
-            self.hash
-                .unchecked_mul(HASH_MUL)
-                .unchecked_add(if self.compl { !word } else { word } as SimulationWordsHash)
-        };
+        hash_function(&mut self.hash, if self.compl { !word } else { word });
         self.words.push(word);
     }
 }
