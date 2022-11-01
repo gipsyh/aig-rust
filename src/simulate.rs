@@ -33,6 +33,19 @@ fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
     *hash = *hash ^ (word + 0x9e3779b9 + (*hash << 6) + (*hash >> 2));
 }
 
+#[inline]
+fn _simd_hash_function(hash: &mut SimulationWordsHash, word: &SimdSimulationWord) {
+    static SIMD_16: SimdSimulationWord = Simd::from_array([16; SimdSimulationWord::LANES]);
+    static SIMD_MUL: SimdSimulationWord = Simd::from_array([0x45d9f3b; SimdSimulationWord::LANES]);
+    static SIMD_ADD: SimdSimulationWord = Simd::from_array([0x9e3779b9; SimdSimulationWord::LANES]);
+    let mut simd_word = ((word >> SIMD_16) ^ word) * SIMD_MUL;
+    simd_word = ((simd_word >> SIMD_16) ^ simd_word) * SIMD_MUL;
+    simd_word = ((simd_word >> SIMD_16) ^ simd_word) + SIMD_ADD;
+    for w in simd_word.as_array() {
+        *hash = *hash ^ (*w + (*hash << 6) + (*hash >> 2));
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SimulationWords {
     hash: SimulationWordsHash,
