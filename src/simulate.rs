@@ -42,6 +42,7 @@ impl SimulationWords {
         }
     }
 
+    #[inline]
     fn calculate_hash(&mut self) {
         self.hash = 0;
         let compl = self.get_bit_value(0);
@@ -99,6 +100,10 @@ impl SimulationWords {
 impl SimulationWords {
     pub fn nbit(&self) -> usize {
         self.words.len() * SimulationWord::BITS as usize - self.nbit_remain
+    }
+
+    pub fn nword(&self) -> usize {
+        self.words.len()
     }
 
     pub fn abs_hash_value(&self) -> SimulationWordsHash {
@@ -214,12 +219,15 @@ impl Simulation {
         self.simulations[0].nbit()
     }
 
+    pub fn nword(&self) -> usize {
+        self.simulations[0].nword()
+    }
+
+    #[inline]
     pub fn sim_and(&self, x: AigEdge, y: AigEdge) -> SimulationWords {
         let xwords = &self.simulations[x.node_id()];
         let ywords = &self.simulations[y.node_id()];
-        assert!(xwords.nbit() == ywords.nbit());
-        assert!(xwords.nbit_remain == ywords.nbit_remain);
-        let mut words = Vec::new();
+        let mut words = Vec::with_capacity(self.nword());
         for idx in 0..xwords.words.len() - 1 {
             let xword = if x.compl() {
                 !xwords.words[idx]

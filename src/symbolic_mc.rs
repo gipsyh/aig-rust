@@ -1,6 +1,10 @@
 use crate::{Aig, AigEdge, AigNodeId};
 use std::{assert_matches::assert_matches, mem::swap};
 
+pub static mut TOTAL_SIMAND: usize = 0;
+pub static mut TOTAL_SIMAND_INSERT: usize = 0;
+pub static mut TOTAL_RESIM: usize = 0;
+pub static mut TOTAL_BUG: usize = 0;
 struct EliminateOrder {
     inputs: Vec<AigNodeId>,
 }
@@ -113,29 +117,29 @@ impl Aig {
         }
         let (mut latch_map, mut transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
-        let bads = self.bads.clone();
-        for b in &bads[1..] {
-            bad = self.new_or_node(bad, *b);
+        for badid in 1..self.bads.len() {
+            bad = self.new_or_node(bad, self.bads[badid]);
         }
-        let mut deep = 0;
+        let mut deep = -1;
         loop {
             deep += 1;
-            dbg!(deep, self.num_nodes());
+            println!("deep {} begin, num nodes: {}", deep, self.num_nodes());
+            dbg!(unsafe { TOTAL_BUG });
             if self.sat_solver.solve(&[bad, frontier]).is_some() {
                 return false;
             }
             let mut equation = self.new_and_node(frontier, transition);
             let mut eliminate_order = EliminateOrder::new(inputs.clone());
             while let Some(mut enode) = eliminate_order.get_node(self, &[equation]) {
-                assert_matches!(self.nodes[enode].typ, crate::AigNodeType::PrimeInput);
+                assert!(self.nodes[enode].is_prime_input());
                 {
-                    let nodes_map =
-                        self.cleanup_redundant(&[frontier, reach, transition, bad, equation]);
-                    reach.set_nodeid(nodes_map[reach.node_id()].unwrap());
-                    frontier.set_nodeid(nodes_map[frontier.node_id()].unwrap());
-                    transition.set_nodeid(nodes_map[transition.node_id()].unwrap());
-                    bad.set_nodeid(nodes_map[bad.node_id()].unwrap());
-                    equation.set_nodeid(nodes_map[equation.node_id()].unwrap());
+                    let nodes_map = self.cleanup_redundant(&mut [
+                        &mut frontier,
+                        &mut reach,
+                        &mut transition,
+                        &mut bad,
+                        &mut equation,
+                    ]);
                     eliminate_order.cleanup_redundant(&nodes_map);
                     enode = nodes_map[enode].unwrap();
                     for input in &mut inputs {
@@ -156,6 +160,11 @@ impl Aig {
                 reach = reach_new
             } else {
                 dbg!(deep);
+                dbg!(unsafe { TOTAL_SIMAND });
+                dbg!(unsafe { TOTAL_SIMAND_INSERT });
+                dbg!(unsafe { TOTAL_RESIM });
+                dbg!(unsafe { TOTAL_BUG });
+                dbg!(self.fraig.as_ref().unwrap().nword());
                 return true;
             }
         }
@@ -172,7 +181,7 @@ mod tests {
         let mut aig =
             Aig::from_file("/root/MC-Benchmark/examples/counter/10bit/counter.aag").unwrap();
         println!("{}", aig);
-        aig.fraig();
+        // aig.fraig();
         dbg!(aig.symbolic_mc_back());
     }
 
@@ -180,7 +189,7 @@ mod tests {
     fn test2() {
         let mut aig = Aig::from_file("./aigs/counter-3bit.aag").unwrap();
         println!("{}", aig);
-        aig.fraig();
+        // aig.fraig();
         dbg!(aig.symbolic_mc_back());
     }
 
@@ -191,7 +200,7 @@ mod tests {
         )
         .unwrap();
         println!("{}", aig);
-        aig.fraig();
+        // aig.fraig();
         println!("{}", aig);
         dbg!(aig.symbolic_mc());
     }

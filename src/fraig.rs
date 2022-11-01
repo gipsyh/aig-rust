@@ -3,6 +3,7 @@ use crate::{
     simulate::{
         Simulation, SimulationWord, SimulationWords, SimulationWordsHash, SIMULATION_TRUE_WORD,
     },
+    symbolic_mc::{TOTAL_BUG, TOTAL_RESIM, TOTAL_SIMAND, TOTAL_SIMAND_INSERT},
     Aig, AigEdge, AigNode, AigNodeId,
 };
 use rand::{thread_rng, Rng};
@@ -79,15 +80,16 @@ impl FrAig {
             for rep_lazy in rep_lazys {
                 let (hash_value, compl) = self.simulation.abs_hash_value(rep_lazy);
                 assert!(!compl);
-                if let Some(a) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
-                    dbg!(rep_lazy);
-                    println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
-                    dbg!(&a);
-                    println!(
-                        "{} {}",
-                        self.simulation[a[0].node_id()],
-                        self.simulation[a[0].node_id()].abs_hash_value()
-                    );
+                if let Some(_) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
+                    unsafe { TOTAL_BUG += 1 };
+                    // dbg!(rep_lazy);
+                    // println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
+                    // dbg!(&a);
+                    // println!(
+                    //     "{} {}",
+                    //     self.simulation[a[0].node_id()],
+                    //     self.simulation[a[0].node_id()].abs_hash_value()
+                    // );
                     panic!()
                 }
             }
@@ -115,6 +117,7 @@ impl FrAig {
         self.simulation.add_node(sim);
     }
 
+    #[inline]
     pub fn new_and_node(
         &mut self,
         nodes: &[AigNode],
@@ -123,6 +126,7 @@ impl FrAig {
         fanin1: AigEdge,
         new_node: AigNodeId,
     ) -> Option<AigEdge> {
+        unsafe { TOTAL_SIMAND += 1 };
         let sim = self.simulation.sim_and(fanin0, fanin1);
         match self.sim_map.get(&sim.abs_hash_value()) {
             Some(cans) => {
@@ -137,7 +141,8 @@ impl FrAig {
                     }
                 }
 
-                let sim = if sim.nbit() != self.simulation.nbit() {
+                let sim = if sim.nword() != self.simulation.nword() {
+                    unsafe { TOTAL_RESIM += 1 };
                     self.simulation.sim_and(fanin0, fanin1)
                 } else {
                     sim
@@ -150,12 +155,14 @@ impl FrAig {
                         .insert(sim.abs_hash_value(), vec![new_edge])
                         .is_none()),
                 };
+                unsafe { TOTAL_SIMAND_INSERT += 1 };
                 self.simulation.add_node(sim);
                 None
             }
             None => {
                 assert_eq!(self.simulation.num_nodes(), new_node);
                 let new_edge = AigEdge::new(self.simulation.num_nodes(), sim.compl());
+                unsafe { TOTAL_SIMAND_INSERT += 1 };
                 assert!(self
                     .sim_map
                     .insert(sim.abs_hash_value(), vec![new_edge])
@@ -168,6 +175,10 @@ impl FrAig {
 }
 
 impl FrAig {
+    pub fn nword(&self) -> usize {
+        self.simulation.nword()
+    }
+
     pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
         self.simulation.cleanup_redundant(node_map);
         let mut should_remove = Vec::new();
@@ -254,12 +265,12 @@ impl Aig {
         candidate_map
     }
 
-    pub fn fraig(&mut self) {
+    pub fn fraig(&mut self, flag: bool) {
         assert!(self.fraig.is_none());
-        let mut simulation = self.new_simulation(2);
+        let mut simulation = self.new_simulation(1);
         loop {
             let candidates = self.get_candidate(&simulation);
-            dbg!(candidates.keys().count());
+            // dbg!(candidates.keys().count());
             let mut update = false;
             for candidate in candidates.values() {
                 if candidate.len() == 1 {
@@ -278,6 +289,9 @@ impl Aig {
                     assert_eq!(*k, simulation.abs_hash_value(candidate[0]).0);
                     assert!(sim_map.insert(*k, vec![candidate[0]]).is_none());
                     for c in &candidate[1..] {
+                        if flag {
+                            unsafe { TOTAL_BUG += 1 };
+                        }
                         assert_eq!(*k, simulation.abs_hash_value(*c).0);
                         self.merge_fe_node(*c, candidate[0]);
                     }
@@ -287,6 +301,7 @@ impl Aig {
                     sim_map,
                     lazy_cex: Vec::new(),
                 });
+                dbg!(self.fraig.as_ref().unwrap().nword());
                 return;
             }
         }
@@ -299,14 +314,14 @@ mod tests {
     #[test]
     fn test1() {
         let mut aig = Aig::from_file("aigs/cec1.aag").unwrap();
-        aig.fraig();
+        // aig.fraig();
         assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 6);
     }
 
     #[test]
     fn test2() {
         let mut aig = Aig::from_file("aigs/cec2.aag").unwrap();
-        aig.fraig();
+        // aig.fraig();
         assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
     }
 }

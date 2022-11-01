@@ -1,7 +1,8 @@
-use crate::{Aig, AigEdge, AigNodeId, AigNodeType};
-use std::{assert_matches::assert_matches, vec};
+use crate::{Aig, AigEdge, AigNodeId};
+use std::vec;
 
 impl Aig {
+    #[inline]
     fn eliminate_input_polarity(
         &mut self,
         eid: AigNodeId,
@@ -10,7 +11,7 @@ impl Aig {
         observe_cone: &[bool],
         observes: Vec<AigEdge>,
     ) -> (Vec<AigEdge>, Vec<AigEdge>) {
-        assert_matches!(self.nodes[eid].typ, AigNodeType::PrimeInput);
+        assert!(self.nodes[eid].is_prime_input());
         assert!(eid < ignores_begin);
         assert!(ignores_begin == observe_cone.len());
         let mut flag = vec![false; ignores_begin];
@@ -47,21 +48,7 @@ impl Aig {
                     fanin1 = edge;
                 }
             }
-            value[node] = Some(if fanin0.node_id() == 0 {
-                if fanin0.compl() {
-                    Aig::constant_edge(false)
-                } else {
-                    fanin1
-                }
-            } else if fanin1.node_id() == 0 {
-                if fanin1.compl() {
-                    Aig::constant_edge(false)
-                } else {
-                    fanin0
-                }
-            } else {
-                self.new_and_node(fanin0, fanin1)
-            });
+            value[node] = Some(self.new_and_node(fanin0, fanin1));
         }
         let mut ret_out = Vec::new();
         let mut ret_ob = Vec::new();
@@ -92,6 +79,7 @@ impl Aig {
         (ret_out, ret_ob)
     }
 
+    #[inline]
     pub fn eliminate_input(&mut self, eid: AigNodeId, observes: Vec<AigEdge>) -> Vec<AigEdge> {
         let fanin_cone = self.fanin_logic_cone(&observes);
         let num_nodes = self.num_nodes();

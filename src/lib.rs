@@ -439,8 +439,8 @@ impl Aig {
 }
 
 impl Aig {
-    pub fn cleanup_redundant(&mut self, observes: &[AigEdge]) -> Vec<Option<AigNodeId>> {
-        let mut observe = observes.to_vec();
+    pub fn cleanup_redundant(&mut self, observes: &mut [&mut AigEdge]) -> Vec<Option<AigNodeId>> {
+        let mut observe: Vec<AigEdge> = observes.iter().map(|e| **e).collect();
         observe.extend(&self.bads);
         observe.extend(&self.outputs);
         for l in &self.latchs {
@@ -462,10 +462,10 @@ impl Aig {
                 node_map[node.id] = Some(self.nodes.len());
                 node.id = self.nodes.len();
                 if node.is_and() {
-                    let fanin0 = node.fanin0();
-                    let fanin1 = node.fanin1();
-                    let fanin0 = AigEdge::new(node_map[fanin0.node_id()].unwrap(), fanin0.compl());
-                    let fanin1 = AigEdge::new(node_map[fanin1.node_id()].unwrap(), fanin1.compl());
+                    let mut fanin0 = node.fanin0();
+                    let mut fanin1 = node.fanin1();
+                    fanin0.set_nodeid(node_map[fanin0.node_id()].unwrap());
+                    fanin1.set_nodeid(node_map[fanin1.node_id()].unwrap());
                     node.set_fanin0(fanin0);
                     node.set_fanin1(fanin1);
                     self.nodes[fanin0.node_id()]
@@ -483,7 +483,12 @@ impl Aig {
                 self.nodes.push(node);
             }
         }
+        // if self.fraig.as_ref().unwrap().nword() > 2000 {
+        //     self.fraig = None;
+        //     self.fraig(true);
+        // } else {
         self.fraig.as_mut().unwrap().cleanup_redundant(&node_map);
+        // }
         for latch in &mut self.latchs {
             latch.input = node_map[latch.input].unwrap();
             latch
@@ -498,6 +503,9 @@ impl Aig {
         }
         for bad in &mut self.bads {
             bad.set_nodeid(node_map[bad.node_id()].unwrap());
+        }
+        for ob in observes {
+            ob.set_nodeid(node_map[ob.node_id()].unwrap());
         }
         node_map
     }
@@ -550,6 +558,6 @@ mod tests {
     fn test_replace_node() {
         let mut aig = Aig::from_file("aigs/i10.aag").unwrap();
         println!("{}", aig);
-        aig.fraig();
+        aig.fraig(false);
     }
 }
