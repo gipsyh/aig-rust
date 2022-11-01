@@ -319,17 +319,26 @@ impl Aig {
 #[cfg(test)]
 mod tests {
     use crate::Aig;
+    use std::simd::Simd;
+
     #[test]
     fn test1() {
-        let mut aig = Aig::from_file("aigs/cec1.aag").unwrap();
+        let aig = Aig::from_file("aigs/cec1.aag").unwrap();
         // aig.fraig();
         assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 6);
     }
 
     #[test]
     fn test2() {
-        let mut aig = Aig::from_file("aigs/cec2.aag").unwrap();
-        // aig.fraig();
-        assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
+        let a = [1, 2, 3, 4];
+        let b = [2, 1, 30, 1];
+        let a: Simd<i32, 4> = std::simd::Simd::from_slice(&a);
+        let b: Simd<i32, 4> = std::simd::Simd::from_slice(&b);
+        let c = a & b;
+        dbg!(&c);
+        // dbg!(c);
+        // let aig = Aig::from_file("aigs/cec2.aag").unwrap();
+        // // aig.fraig();
+        // assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
     }
 }

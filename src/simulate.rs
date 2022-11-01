@@ -5,9 +5,12 @@ use std::{
     iter::repeat,
     mem::take,
     ops::Index,
+    simd::Simd,
 };
 
 pub type SimulationWord = u64;
+
+pub type SimdSimulationWord = Simd<SimulationWord, 64>;
 
 pub const SIMULATION_TRUE_WORD: SimulationWord = SimulationWord::MAX;
 
@@ -33,7 +36,8 @@ fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
 #[derive(Clone, Debug)]
 pub struct SimulationWords {
     hash: SimulationWordsHash,
-    words: Vec<SimulationWord>,
+    simd_words: Vec<SimdSimulationWord>,
+    remain_words: Vec<SimulationWord>,
     compl: bool,
 }
 
@@ -41,33 +45,49 @@ impl SimulationWords {
     #[inline]
     fn calculate_hash(&mut self) {
         self.hash = 0;
-        self.compl = self.words[0] & 1 > 0;
-        for id in 0..self.words.len() {
-            hash_function(
-                &mut self.hash,
-                if self.compl {
-                    !self.words[id]
-                } else {
-                    self.words[id]
-                },
-            );
+        self.compl = self.simd_words[0][0] & 1 > 0;
+        for simd_word in self.simd_words.iter() {
+            for word in simd_word.as_array() {
+                hash_function(&mut self.hash, if self.compl { !word } else { *word });
+            }
+        }
+        for word in self.remain_words.iter() {
+            hash_function(&mut self.hash, if self.compl { !word } else { *word });
         }
     }
 
-    fn true_words(nword: usize) -> Self {
-        let mut ret = Self {
-            words: repeat(SimulationWord::MAX).take(nword).collect(),
+    fn new_with_simd_words(
+        simd_words: Vec<SimdSimulationWord>,
+        remain_words: Vec<SimulationWord>,
+    ) -> Self {
+        let mut ret = SimulationWords {
             hash: 0,
             compl: false,
+            simd_words,
+            remain_words,
         };
         ret.calculate_hash();
         ret
+    }
+
+    fn true_words(nword: usize) -> Self {
+        let nsimd = nword / SimdSimulationWord::LANES;
+        let nremain = nword % SimdSimulationWord::LANES;
+        let simd_words = repeat(())
+            .take(nsimd)
+            .map(|_| SimdSimulationWord::from([SimulationWord::MAX; SimdSimulationWord::LANES]))
+            .collect();
+        let remain_words = repeat(())
+            .take(nremain)
+            .map(|_| SimulationWord::MAX)
+            .collect();
+        SimulationWords::new_with_simd_words(simd_words, remain_words)
     }
 }
 
 impl SimulationWords {
     pub fn nword(&self) -> usize {
-        self.words.len()
+        self.simd_words.len() * 64 + self.remain_words.len()
     }
 
     pub fn abs_hash_value(&self) -> SimulationWordsHash {
@@ -78,32 +98,38 @@ impl SimulationWords {
         self.compl
     }
 
-    fn new_with_words(words: Vec<SimulationWord>) -> Self {
-        let mut ret = SimulationWords {
-            words,
-            hash: 0,
-            compl: false,
-        };
-        ret.calculate_hash();
-        ret
-    }
-
     pub fn new(nword: usize) -> Self {
         let mut gen = RandomWordGenerator::new();
-        let words = repeat(()).take(nword).map(|_| gen.rand_word()).collect();
-        SimulationWords::new_with_words(words)
+        let nsimd = nword / SimdSimulationWord::LANES;
+        let nremain = nword % SimdSimulationWord::LANES;
+        let simd_words = repeat(())
+            .take(nsimd)
+            .map(|_| gen.rand_simd_word())
+            .collect();
+        let remain_words = repeat(()).take(nremain).map(|_| gen.rand_word()).collect();
+        SimulationWords::new_with_simd_words(simd_words, remain_words)
     }
 
     fn push_word(&mut self, word: SimulationWord) {
         hash_function(&mut self.hash, if self.compl { !word } else { word });
-        self.words.push(word);
+        self.remain_words.push(word);
+        if self.remain_words.len() == SimdSimulationWord::LANES {
+            let remain = take(&mut self.remain_words);
+            self.simd_words
+                .push(SimdSimulationWord::from_slice(&remain));
+        }
     }
 }
 
 impl Display for SimulationWords {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        for word in self.words.iter().rev() {
-            write!(f, "{:0>32b}", *word)?;
+        for simd_word in self.simd_words.iter().rev() {
+            for word in simd_word.as_array() {
+                write!(f, "{:0>64b}", *word)?;
+            }
+        }
+        for word in self.remain_words.iter() {
+            write!(f, "{:0>64b}", *word)?;
         }
         Ok(())
     }
@@ -120,6 +146,14 @@ impl RandomWordGenerator {
 
     fn rand_word(&mut self) -> SimulationWord {
         self.rng.gen()
+    }
+
+    fn rand_simd_word(&mut self) -> SimdSimulationWord {
+        let mut ret = SimdSimulationWord::default();
+        for word in ret.as_mut_array() {
+            *word = self.rng.gen()
+        }
+        ret
     }
 }
 
@@ -141,24 +175,55 @@ impl Simulation {
     pub fn sim_and(&self, x: AigEdge, y: AigEdge) -> SimulationWords {
         let xwords = &self.simulations[x.node_id()];
         let ywords = &self.simulations[y.node_id()];
-        let mut words = Vec::with_capacity(self.nword());
-        let remain = words.spare_capacity_mut();
+        let mut simd_words = Vec::with_capacity(xwords.simd_words.capacity());
+        let mut remain_words = Vec::with_capacity(xwords.remain_words.capacity());
+        let simd_words_remain = simd_words.spare_capacity_mut();
+        let remain_words_remain = remain_words.spare_capacity_mut();
         let edge_word = |word: &SimulationWord, edge: AigEdge| {
             if edge.compl() {
-                !word
+                !*word
             } else {
                 *word
             }
         };
-        let compl = (edge_word(&xwords.words[0], x) & edge_word(&ywords.words[0], y) & 1) > 0;
+        let compl =
+            (edge_word(&xwords.simd_words[0][0], x) & edge_word(&ywords.simd_words[0][0], y) & 1)
+                > 0;
         let mut hash = 0;
-        for (idx, remain_word) in remain.iter_mut().enumerate() {
-            let word = edge_word(&xwords.words[idx], x) & edge_word(&ywords.words[idx], y);
-            hash_function(&mut hash, if compl { !word } else { word });
-            remain_word.write(word);
+        for (idx, simd_word_remain) in simd_words_remain
+            .iter_mut()
+            .enumerate()
+            .take(xwords.simd_words.len())
+        {
+            let simd_word = match (x.compl(), y.compl()) {
+                (true, true) => (!xwords.simd_words[idx]) & (!ywords.simd_words[idx]),
+                (true, false) => (!xwords.simd_words[idx]) & (ywords.simd_words[idx]),
+                (false, true) => (xwords.simd_words[idx]) & (!ywords.simd_words[idx]),
+                (false, false) => xwords.simd_words[idx] & ywords.simd_words[idx],
+            };
+            for word in simd_word.as_array() {
+                hash_function(&mut hash, if compl { !word } else { *word });
+            }
+            simd_word_remain.write(simd_word);
         }
-        unsafe { words.set_len(self.nword()) };
-        SimulationWords { hash, words, compl }
+        for (idx, remain_word_remain) in remain_words_remain
+            .iter_mut()
+            .enumerate()
+            .take(xwords.remain_words.len())
+        {
+            let word =
+                edge_word(&xwords.remain_words[idx], x) & edge_word(&ywords.remain_words[idx], y);
+            hash_function(&mut hash, if compl { !word } else { word });
+            remain_word_remain.write(word);
+        }
+        unsafe { simd_words.set_len(xwords.simd_words.len()) };
+        unsafe { remain_words.set_len(xwords.remain_words.len()) };
+        SimulationWords {
+            hash,
+            simd_words,
+            remain_words,
+            compl,
+        }
     }
 
     pub fn abs_hash_value(&self, e: AigEdge) -> (SimulationWordsHash, bool) {
@@ -202,7 +267,8 @@ impl Index<usize> for Simulation {
 }
 
 impl Aig {
-    pub fn new_simulation(&self, nwords: usize) -> Simulation {
+    pub fn new_simulation(&self, nsimd_word: usize) -> Simulation {
+        let nwords = nsimd_word * SimdSimulationWord::LANES;
         let mut simulations = Simulation {
             simulations: vec![SimulationWords::true_words(nwords)],
         };

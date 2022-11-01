@@ -1,4 +1,4 @@
-#![feature(assert_matches, ptr_metadata, unchecked_math, test)]
+#![feature(assert_matches, ptr_metadata, unchecked_math, test, portable_simd)]
 
 mod aiger;
 mod brute_force;
