@@ -12,7 +12,7 @@ impl Aig {
             let fanin1 = and.fanin1().node_id();
             levels[and.node_id()] = levels[fanin0].max(levels[fanin1]) + 1;
         }
-        for (id, node) in levels.iter().enumerate().take(self.num_nodes()) {
+        for (id, node) in levels.iter().enumerate() {
             self.nodes[id].level = *node;
         }
     }
@@ -29,34 +29,10 @@ impl Aig {
             let compl = fanin1.compl();
             fanouts[fanin1id].push(AigEdge::new(and.id, compl));
         }
-        for (id, node) in fanouts.iter_mut().enumerate().take(self.num_nodes()) {
+        for (id, node) in fanouts.iter_mut().enumerate() {
             self.nodes[id].fanouts = take(node);
         }
     }
-
-    // fn setup_subnode_size(&mut self) {
-    //     for ci in 0..self.nodes.len() {
-    //         self.nodes[ci].size += 1;
-    //         let mut flag = vec![false; self.num_nodes()];
-    //         let mut queue = VecDeque::new();
-    //         for fanout in &self.nodes[ci].fanouts {
-    //             if !flag[fanout.id] {
-    //                 queue.push_back(fanout.id);
-    //                 flag[fanout.id] = true;
-    //             }
-    //         }
-    //         while !queue.is_empty() {
-    //             let node = queue.pop_front().unwrap();
-    //             self.nodes[node].size += 1;
-    //             for fanout in &self.nodes[node].fanouts {
-    //                 if !flag[fanout.id] {
-    //                     queue.push_back(fanout.id);
-    //                     flag[fanout.id] = true;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 
     pub fn from_file<P: AsRef<Path>>(file: P) -> io::Result<Self> {
         let file = std::fs::File::open(file)?;

@@ -18,7 +18,6 @@ use std::{
     collections::{BinaryHeap, HashMap},
     mem::{swap, take},
     ops::{Index, Not, Range},
-    slice::Iter,
     vec,
 };
 
@@ -384,19 +383,6 @@ impl Aig {
     pub fn nodes_range_with_true(&self) -> Range<usize> {
         0..self.num_nodes()
     }
-
-    pub fn pinputs_iter(&self) -> Iter<AigNode> {
-        todo!()
-    }
-
-    // pub fn cinputs_iter(&self) -> impl Iterator<Item = &AigNode> {
-    //     self.cinputs.iter().map(|id| &self.nodes[*id])
-    // }
-
-    // pub fn cinputs_iter_mut(&mut self) -> impl Iterator<Item = &mut AigNode> {
-    //     let a = self.cinputs.clone();
-    //     a.iter().map(|id| &mut self.nodes[*id])
-    // }
 
     pub fn ands_iter(&self) -> impl Iterator<Item = &AigNode> {
         self.nodes

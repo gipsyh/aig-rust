@@ -11,9 +11,9 @@ impl Aig {
         observe_cone: &[bool],
         observes: Vec<AigEdge>,
     ) -> (Vec<AigEdge>, Vec<AigEdge>) {
-        assert!(self.nodes[eid].is_prime_input());
-        assert!(eid < ignores_begin);
-        assert!(ignores_begin == observe_cone.len());
+        debug_assert!(self.nodes[eid].is_prime_input());
+        debug_assert!(eid < ignores_begin);
+        debug_assert!(ignores_begin == observe_cone.len());
         let mut flag = vec![false; ignores_begin];
         let mut value = vec![None; ignores_begin];
         flag[eid] = true;
@@ -30,10 +30,10 @@ impl Aig {
                 value[eid] = Some(Aig::constant_edge(!polarity));
                 continue;
             }
-            assert!(self.nodes[node].is_and());
+            debug_assert!(self.nodes[node].is_and());
             let mut fanin0 = self.nodes[node].fanin0();
             let mut fanin1 = self.nodes[node].fanin1();
-            assert!(value[fanin0.node_id()].is_some() || value[fanin1.node_id()].is_some());
+            debug_assert!(value[fanin0.node_id()].is_some() || value[fanin1.node_id()].is_some());
             if let Some(edge) = value[fanin0.node_id()] {
                 if fanin0.compl() {
                     fanin0 = !edge;

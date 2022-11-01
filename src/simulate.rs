@@ -22,6 +22,7 @@ pub type SimulationWordsHash = SimulationWord;
 //     }
 // }
 
+#[inline]
 fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
     word = ((word >> 16) ^ word) * 0x45d9f3b;
     word = ((word >> 16) ^ word) * 0x45d9f3b;
@@ -141,20 +142,23 @@ impl Simulation {
         let xwords = &self.simulations[x.node_id()];
         let ywords = &self.simulations[y.node_id()];
         let mut words = Vec::with_capacity(self.nword());
-        for idx in 0..xwords.words.len() {
-            let xword = if x.compl() {
-                !xwords.words[idx]
+        let remain = words.spare_capacity_mut();
+        let edge_word = |word: &SimulationWord, edge: AigEdge| {
+            if edge.compl() {
+                !word
             } else {
-                xwords.words[idx]
-            };
-            let yword = if y.compl() {
-                !ywords.words[idx]
-            } else {
-                ywords.words[idx]
-            };
-            words.push(xword & yword);
+                *word
+            }
+        };
+        let compl = (edge_word(&xwords.words[0], x) & edge_word(&ywords.words[0], y) & 1) > 0;
+        let mut hash = 0;
+        for (idx, remain_word) in remain.iter_mut().enumerate() {
+            let word = edge_word(&xwords.words[idx], x) & edge_word(&ywords.words[idx], y);
+            hash_function(&mut hash, if compl { !word } else { word });
+            remain_word.write(word);
         }
-        SimulationWords::new_with_words(words)
+        unsafe { words.set_len(self.nword()) };
+        SimulationWords { hash, words, compl }
     }
 
     pub fn abs_hash_value(&self, e: AigEdge) -> (SimulationWordsHash, bool) {
@@ -166,7 +170,7 @@ impl Simulation {
 
     pub fn add_words(&mut self, pattern: Vec<SimulationWord>) {
         assert_eq!(pattern.len(), self.simulations.len());
-        for (i, p) in pattern.iter().enumerate().take(self.simulations.len()) {
+        for (i, p) in pattern.iter().enumerate() {
             self.simulations[i].push_word(*p);
         }
     }

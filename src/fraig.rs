@@ -47,7 +47,7 @@ impl FrAig {
                 ret.push(rng.gen())
             }
         }
-        for (nbit, p) in pattern.iter().enumerate().take(pattern.len()) {
+        for (nbit, p) in pattern.iter().enumerate() {
             for e in p {
                 if e.compl() {
                     ret[e.node_id()] &= !(1 << nbit);
