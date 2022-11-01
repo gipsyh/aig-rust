@@ -2,6 +2,7 @@ use crate::{Aig, AigEdge, AigNodeId};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
+    iter::repeat,
     mem::take,
     ops::Index,
 };
@@ -14,83 +15,48 @@ pub type SimulationWordsHash = u64;
 
 const HASH_MUL: SimulationWordsHash = 4294967311;
 
+// const HASH_MUL_PRIMES: [SimulationWord; 16] = [
+//     1291, 1699, 1999, 2357, 2953, 3313, 3907, 4177, 4831, 5147, 5647, 6343, 6899, 7103, 7873, 8147,
+// ];
+
 #[derive(Clone, Debug)]
 pub struct SimulationWords {
     hash: SimulationWordsHash,
-    nbit_remain: usize,
     words: Vec<SimulationWord>,
+    compl: bool,
 }
 
 impl SimulationWords {
-    fn last_word_value(word: SimulationWord, nbit_remain: usize) -> SimulationWord {
-        word & (SimulationWord::MAX >> nbit_remain)
-    }
-
-    fn get_bit_value(&self, index: usize) -> bool {
-        let nword = index / SimulationWord::BITS as usize;
-        let nbit = index % SimulationWord::BITS as usize;
-        self.words[nword] & (1 << nbit) > 0
-    }
-
-    fn _set_bit_value(&mut self, index: usize, value: bool) {
-        let nword = index / SimulationWord::BITS as usize;
-        let nbit = index % SimulationWord::BITS as usize;
-        if value {
-            self.words[nword] |= 1 << nbit
-        } else {
-            self.words[nword] &= !(1 << nbit)
-        }
-    }
-
     #[inline]
     fn calculate_hash(&mut self) {
         self.hash = 0;
-        let compl = self.get_bit_value(0);
-        for id in 0..self.words.len() - 1 {
+        self.compl = self.words[0] & 1 > 0;
+        for id in 0..self.words.len() {
+            // self.hash ^= unsafe {
+            //     if self.compl {
+            //         !self.words[id]
+            //     } else {
+            //         self.words[id]
+            //     }
+            //     .unchecked_mul(HASH_MUL_PRIMES[id & 0xf] as SimulationWord)
+            // };
             self.hash = unsafe {
-                let word = if compl {
-                    !self.words[id]
-                } else {
-                    self.words[id]
-                };
                 self.hash
-                    .unchecked_mul(HASH_MUL as SimulationWordsHash)
-                    .unchecked_add(word as SimulationWordsHash)
-            };
-        }
-        let last = Self::last_word_value(
-            if compl {
-                !self.words.last().unwrap()
-            } else {
-                *self.words.last().unwrap()
-            },
-            self.nbit_remain,
-        );
-
-        self.hash = unsafe {
-            self.hash
-                .unchecked_mul(HASH_MUL as SimulationWordsHash)
-                .unchecked_add(last as SimulationWordsHash)
+                    .unchecked_mul(HASH_MUL)
+                    .unchecked_add(if self.compl {
+                        !self.words[id]
+                    } else {
+                        self.words[id]
+                    } as SimulationWordsHash)
+            }
         }
     }
 
-    fn true_word(nbits: usize) -> Self {
-        let mut words = Vec::new();
-        let nword = nbits / SimulationWord::BITS as usize;
-        for _ in 0..nword {
-            words.push(SimulationWord::MAX);
-        }
-        let mut nbit_remain =
-            SimulationWord::BITS as usize - (nbits % SimulationWord::BITS as usize);
-        if nbit_remain == SimulationWord::BITS as usize {
-            nbit_remain = 0;
-        } else {
-            words.push(Self::last_word_value(SimulationWord::MAX, nbit_remain));
-        }
+    fn true_words(nword: usize) -> Self {
         let mut ret = Self {
-            words,
+            words: repeat(SimulationWord::MAX).take(nword).collect(),
             hash: 0,
-            nbit_remain,
+            compl: false,
         };
         ret.calculate_hash();
         ret
@@ -98,10 +64,6 @@ impl SimulationWords {
 }
 
 impl SimulationWords {
-    pub fn nbit(&self) -> usize {
-        self.words.len() * SimulationWord::BITS as usize - self.nbit_remain
-    }
-
     pub fn nword(&self) -> usize {
         self.words.len()
     }
@@ -111,72 +73,34 @@ impl SimulationWords {
     }
 
     pub fn compl(&self) -> bool {
-        self.get_bit_value(0)
+        self.compl
     }
 
-    pub fn new(nbits: usize) -> Self {
-        let mut gen = RandomWordGenerator::new();
-        let mut words = Vec::new();
-        let nword = nbits / SimulationWord::BITS as usize;
-        for _ in 0..nword {
-            words.push(gen.rand_word());
-        }
-        let mut nbit_remain =
-            SimulationWord::BITS as usize - (nbits % SimulationWord::BITS as usize);
-        if nbit_remain == SimulationWord::BITS as usize {
-            nbit_remain = 0;
-        } else {
-            words.push(Self::last_word_value(gen.rand_word(), nbit_remain));
-        }
-        let mut ret = Self {
+    fn new_with_words(words: Vec<SimulationWord>) -> Self {
+        let mut ret = SimulationWords {
             words,
             hash: 0,
-            nbit_remain,
+            compl: false,
         };
         ret.calculate_hash();
         ret
     }
 
-    fn push_bit(&mut self, bit: bool) {
-        if self.nbit_remain == 0 {
-            self.hash = unsafe {
-                self.hash
-                    .unchecked_mul(HASH_MUL as SimulationWordsHash)
-                    .unchecked_add((bit ^ self.compl()) as SimulationWordsHash)
-            };
-            self.words.push(bit as SimulationWord);
-            self.nbit_remain = SimulationWord::BITS as usize - 1;
-        } else {
-            let compl = self.compl();
-            let last = self.words.pop().unwrap();
-            let last_hash = if compl {
-                Self::last_word_value(!last, self.nbit_remain)
-            } else {
-                last
-            };
-            self.hash = unsafe { self.hash.unchecked_sub(last_hash as SimulationWordsHash) };
-            let last = last
-                | ((bit as SimulationWord) << (SimulationWord::BITS as usize - self.nbit_remain));
-            self.nbit_remain -= 1;
-            let last_hash = if compl {
-                Self::last_word_value(!last, self.nbit_remain)
-            } else {
-                last
-            };
-            self.hash = unsafe { self.hash.unchecked_add(last_hash as SimulationWordsHash) };
-            self.words.push(last);
-        }
+    pub fn new(nword: usize) -> Self {
+        let mut gen = RandomWordGenerator::new();
+        let words = repeat(()).take(nword).map(|_| gen.rand_word()).collect();
+        SimulationWords::new_with_words(words)
     }
 
     fn push_word(&mut self, word: SimulationWord) {
-        if self.nbit_remain > 0 {
-            self.nbit_remain = 0;
-        }
-        let word_hash = if self.compl() { !word } else { word };
+        // self.hash ^= unsafe {
+        //     if self.compl { !word } else { word }
+        //         .unchecked_mul(HASH_MUL_PRIMES[self.words.len() & 0xf] as SimulationWord)
+        // };
         self.hash = unsafe {
             self.hash
-                .unchecked_mul(HASH_MUL as SimulationWordsHash)
-                .unchecked_add(word_hash as SimulationWordsHash)
+                .unchecked_mul(HASH_MUL)
+                .unchecked_add(if self.compl { !word } else { word } as SimulationWordsHash)
         };
         self.words.push(word);
     }
@@ -185,7 +109,7 @@ impl SimulationWords {
 impl Display for SimulationWords {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for word in self.words.iter().rev() {
-            write!(f, "{:0>16b}", *word)?;
+            write!(f, "{:0>32b}", *word)?;
         }
         Ok(())
     }
@@ -215,10 +139,6 @@ impl Simulation {
         self.simulations.len()
     }
 
-    pub fn nbit(&self) -> usize {
-        self.simulations[0].nbit()
-    }
-
     pub fn nword(&self) -> usize {
         self.simulations[0].nword()
     }
@@ -228,7 +148,7 @@ impl Simulation {
         let xwords = &self.simulations[x.node_id()];
         let ywords = &self.simulations[y.node_id()];
         let mut words = Vec::with_capacity(self.nword());
-        for idx in 0..xwords.words.len() - 1 {
+        for idx in 0..xwords.words.len() {
             let xword = if x.compl() {
                 !xwords.words[idx]
             } else {
@@ -241,26 +161,7 @@ impl Simulation {
             };
             words.push(xword & yword);
         }
-        let lastx = xwords.words.last().unwrap();
-        let lasty = ywords.words.last().unwrap();
-        let lastx = if x.compl() {
-            SimulationWords::last_word_value(!lastx, xwords.nbit_remain)
-        } else {
-            *lastx
-        };
-        let lasty = if y.compl() {
-            SimulationWords::last_word_value(!lasty, ywords.nbit_remain)
-        } else {
-            *lasty
-        };
-        words.push(lastx & lasty);
-        let mut ret = SimulationWords {
-            hash: 0,
-            nbit_remain: xwords.nbit_remain,
-            words,
-        };
-        ret.calculate_hash();
-        ret
+        SimulationWords::new_with_words(words)
     }
 
     pub fn abs_hash_value(&self, e: AigEdge) -> (SimulationWordsHash, bool) {
@@ -268,14 +169,6 @@ impl Simulation {
             self.simulations[e.node_id()].abs_hash_value(),
             e.compl() ^ self.simulations[e.node_id()].compl(),
         )
-    }
-
-    pub fn add_bits(&mut self, bits: Vec<bool>) {
-        assert_eq!(bits.len(), self.simulations.len());
-        assert!(bits[0]);
-        for (i, p) in bits.iter().enumerate().take(self.simulations.len()) {
-            self.simulations[i].push_bit(*p)
-        }
     }
 
     pub fn add_words(&mut self, pattern: Vec<SimulationWord>) {
@@ -286,7 +179,7 @@ impl Simulation {
     }
 
     pub fn add_node(&mut self, sim: SimulationWords) {
-        assert!(sim.nbit() == self.simulations[0].nbit());
+        assert!(sim.nword() == self.nword());
         self.simulations.push(sim)
     }
 }
@@ -313,16 +206,15 @@ impl Index<usize> for Simulation {
 
 impl Aig {
     pub fn new_simulation(&self, nwords: usize) -> Simulation {
-        let nbits = nwords * SimulationWord::BITS as usize;
         let mut simulations = Simulation {
-            simulations: vec![SimulationWords::true_word(nbits)],
+            simulations: vec![SimulationWords::true_words(nwords)],
         };
         for node in &self.nodes[1..] {
             if node.is_and() {
                 let sim_and = simulations.sim_and(node.fanin0(), node.fanin1());
                 simulations.simulations.push(sim_and);
             } else {
-                simulations.simulations.push(SimulationWords::new(nbits));
+                simulations.simulations.push(SimulationWords::new(nwords));
             }
         }
         simulations
@@ -331,20 +223,7 @@ impl Aig {
 
 #[cfg(test)]
 mod tests {
-    use super::SimulationWords;
     use crate::Aig;
-
-    #[test]
-    fn test_words() {
-        let mut words = SimulationWords::new(16);
-        println!("{}", words);
-        words.push_bit(true);
-        println!("{}", words);
-        words.push_bit(false);
-        println!("{}", words);
-        words.push_bit(true);
-        println!("{}", words);
-    }
 
     #[test]
     fn test_simulation() {

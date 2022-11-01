@@ -7,7 +7,11 @@ use crate::{
     Aig, AigEdge, AigNode, AigNodeId,
 };
 use rand::{thread_rng, Rng};
-use std::{collections::HashMap, mem::take, vec};
+use std::{
+    collections::HashMap,
+    mem::{replace, take},
+    vec,
+};
 
 #[derive(Debug, Clone)]
 pub struct FrAig {
@@ -80,17 +84,17 @@ impl FrAig {
             for rep_lazy in rep_lazys {
                 let (hash_value, compl) = self.simulation.abs_hash_value(rep_lazy);
                 assert!(!compl);
-                if let Some(_) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
+                if let Some(a) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
                     unsafe { TOTAL_BUG += 1 };
-                    // dbg!(rep_lazy);
-                    // println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
-                    // dbg!(&a);
-                    // println!(
-                    //     "{} {}",
-                    //     self.simulation[a[0].node_id()],
-                    //     self.simulation[a[0].node_id()].abs_hash_value()
-                    // );
-                    // panic!()
+                    dbg!(rep_lazy);
+                    println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
+                    dbg!(&a);
+                    println!(
+                        "{} {}",
+                        self.simulation[a[0].node_id()],
+                        self.simulation[a[0].node_id()].abs_hash_value()
+                    );
+                    panic!()
                 }
             }
         }
@@ -105,9 +109,9 @@ impl FrAig {
 
     pub fn new_input_node(&mut self, node: AigNodeId) {
         assert_eq!(self.simulation.num_nodes(), node);
-        let mut sim = SimulationWords::new(self.simulation.nbit());
+        let mut sim = SimulationWords::new(self.simulation.nword());
         while self.sim_map.contains_key(&sim.abs_hash_value()) {
-            sim = SimulationWords::new(self.simulation.nbit());
+            sim = SimulationWords::new(self.simulation.nword());
         }
         let edge = AigEdge::new(node, sim.compl());
         assert!(self
@@ -240,20 +244,10 @@ impl Aig {
     ) -> HashMap<SimulationWordsHash, Vec<AigEdge>> {
         let mut candidate_map: HashMap<SimulationWordsHash, Vec<AigEdge>> = HashMap::new();
         for idx in self.nodes_range_with_true() {
+            let edge = AigEdge::new(idx, simulation[idx].compl());
             match candidate_map.get_mut(&simulation[idx].abs_hash_value()) {
-                Some(candidate) => {
-                    if simulation[idx].compl() {
-                        candidate.push(AigEdge::new(idx, true))
-                    } else {
-                        candidate.push(AigEdge::new(idx, false))
-                    }
-                }
+                Some(candidate) => candidate.push(edge),
                 None => {
-                    let edge = if simulation[idx].compl() {
-                        AigEdge::new(idx, true)
-                    } else {
-                        AigEdge::new(idx, false)
-                    };
                     assert!(candidate_map
                         .insert(simulation[idx].abs_hash_value(), vec![edge],)
                         .is_none());
@@ -270,13 +264,14 @@ impl Aig {
             let candidates = self.get_candidate(&simulation);
             // dbg!(candidates.keys().count());
             let mut update = false;
+            let mut patterns = Vec::new();
             for candidate in candidates.values() {
                 if candidate.len() == 1 {
                     continue;
                 }
                 for c in &candidate[1..] {
                     if let Some(s) = self.sat_solver.equivalence_check(candidate[0], *c) {
-                        simulation.add_bits(Self::gen_pattern(&self.nodes, s));
+                        patterns.push(Self::gen_pattern(&self.nodes, s));
                         update = true;
                     }
                 }
@@ -301,6 +296,21 @@ impl Aig {
                 });
                 dbg!(self.fraig.as_ref().unwrap().nword());
                 return;
+            } else {
+                assert!(self.num_nodes() == patterns[0].len());
+                let mut words = vec![0; self.num_nodes()];
+                for (bit, pattern) in patterns.into_iter().enumerate() {
+                    if bit > 0 && bit % (SimulationWord::BITS as usize) == 0 {
+                        let submit = replace(&mut words, vec![0; self.num_nodes()]);
+                        simulation.add_words(submit);
+                    }
+                    for (idx, p) in pattern.into_iter().enumerate() {
+                        if p {
+                            words[idx] |= 1 << bit;
+                        }
+                    }
+                }
+                simulation.add_words(words);
             }
         }
     }
