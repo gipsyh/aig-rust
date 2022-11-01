@@ -50,7 +50,8 @@ fn _simd_hash_function(hash: &mut SimulationWordsHash, word: &SimdSimulationWord
 pub struct SimulationWords {
     hash: SimulationWordsHash,
     simd_words: Vec<SimdSimulationWord>,
-    remain_words: Vec<SimulationWord>,
+    remain_words: SimdSimulationWord,
+    nword_remain: usize,
     compl: bool,
 }
 
@@ -64,20 +65,25 @@ impl SimulationWords {
                 hash_function(&mut self.hash, if self.compl { !word } else { *word });
             }
         }
-        for word in self.remain_words.iter() {
+        for word in &self.remain_words[0..self.nword_remain] {
             hash_function(&mut self.hash, if self.compl { !word } else { *word });
         }
     }
 
     fn new_with_simd_words(
         simd_words: Vec<SimdSimulationWord>,
-        remain_words: Vec<SimulationWord>,
+        remain_words_vec: Vec<SimulationWord>,
     ) -> Self {
+        let mut remain_words = SimdSimulationWord::default();
+        for (src, dst) in remain_words_vec.iter().zip(remain_words.as_mut_array()) {
+            *dst = *src;
+        }
         let mut ret = SimulationWords {
             hash: 0,
             compl: false,
             simd_words,
             remain_words,
+            nword_remain: remain_words_vec.len(),
         };
         ret.calculate_hash();
         ret
@@ -100,7 +106,7 @@ impl SimulationWords {
 
 impl SimulationWords {
     pub fn nword(&self) -> usize {
-        self.simd_words.len() * 64 + self.remain_words.len()
+        self.simd_words.len() * 64 + self.nword_remain
     }
 
     pub fn abs_hash_value(&self) -> SimulationWordsHash {
@@ -125,11 +131,11 @@ impl SimulationWords {
 
     fn push_word(&mut self, word: SimulationWord) {
         hash_function(&mut self.hash, if self.compl { !word } else { word });
-        self.remain_words.push(word);
-        if self.remain_words.len() == SimdSimulationWord::LANES {
-            let remain = take(&mut self.remain_words);
-            self.simd_words
-                .push(SimdSimulationWord::from_slice(&remain));
+        self.remain_words[self.nword_remain] = word;
+        self.nword_remain += 1;
+        if self.nword_remain == SimdSimulationWord::LANES {
+            self.nword_remain = 0;
+            self.simd_words.push(take(&mut self.remain_words));
         }
     }
 }
@@ -141,7 +147,7 @@ impl Display for SimulationWords {
                 write!(f, "{:0>64b}", *word)?;
             }
         }
-        for word in self.remain_words.iter() {
+        for word in self.remain_words.as_array().iter().take(self.nword_remain) {
             write!(f, "{:0>64b}", *word)?;
         }
         Ok(())
@@ -189,9 +195,8 @@ impl Simulation {
         let xwords = &self.simulations[x.node_id()];
         let ywords = &self.simulations[y.node_id()];
         let mut simd_words = Vec::with_capacity(xwords.simd_words.capacity());
-        let mut remain_words = Vec::with_capacity(xwords.remain_words.capacity());
+        let mut remain_words = SimdSimulationWord::default();
         let simd_words_remain = simd_words.spare_capacity_mut();
-        let remain_words_remain = remain_words.spare_capacity_mut();
         let edge_word = |word: &SimulationWord, edge: AigEdge| {
             if edge.compl() {
                 !*word
@@ -219,23 +224,24 @@ impl Simulation {
             }
             simd_word_remain.write(simd_word);
         }
-        for (idx, remain_word_remain) in remain_words_remain
+        for (idx, remain_word) in remain_words
+            .as_mut_array()
             .iter_mut()
             .enumerate()
-            .take(xwords.remain_words.len())
+            .take(xwords.nword_remain)
         {
             let word =
                 edge_word(&xwords.remain_words[idx], x) & edge_word(&ywords.remain_words[idx], y);
             hash_function(&mut hash, if compl { !word } else { word });
-            remain_word_remain.write(word);
+            *remain_word = word;
         }
         unsafe { simd_words.set_len(xwords.simd_words.len()) };
-        unsafe { remain_words.set_len(xwords.remain_words.len()) };
         SimulationWords {
             hash,
             simd_words,
             remain_words,
             compl,
+            nword_remain: xwords.nword_remain,
         }
     }
 
