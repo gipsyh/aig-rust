@@ -94,11 +94,11 @@ impl SimulationWords {
         let nremain = nword % SimdSimulationWord::LANES;
         let simd_words = repeat(())
             .take(nsimd)
-            .map(|_| SimdSimulationWord::from([SimulationWord::MAX; SimdSimulationWord::LANES]))
+            .map(|_| SimdSimulationWord::from([SIMULATION_TRUE_WORD; SimdSimulationWord::LANES]))
             .collect();
         let remain_words = repeat(())
             .take(nremain)
-            .map(|_| SimulationWord::MAX)
+            .map(|_| SIMULATION_TRUE_WORD)
             .collect();
         SimulationWords::new_with_simd_words(simd_words, remain_words)
     }
@@ -157,6 +157,20 @@ impl Display for SimulationWords {
             write!(f, "{:0>64b}", *word)?;
         }
         Ok(())
+    }
+}
+
+impl Index<usize> for SimulationWords {
+    type Output = SimulationWord;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let nsimd = index / SimdSimulationWord::LANES;
+        let nremain = index % SimdSimulationWord::LANES;
+        if nsimd < self.simd_words.len() {
+            &self.simd_words[nsimd][nremain]
+        } else {
+            &self.remain_words[nremain]
+        }
     }
 }
 

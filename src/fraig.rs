@@ -1,8 +1,6 @@
 use crate::{
     sat::SatSolver,
-    simulate::{
-        Simulation, SimulationWord, SimulationWords, SimulationWordsHash, SIMULATION_TRUE_WORD,
-    },
+    simulate::{Simulation, SimulationWord, SimulationWords, SimulationWordsHash},
     symbolic_mc::{
         TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM, TOTAL_SIMAND,
         TOTAL_SIMAND_NOSAT_INSERT, TOTAL_SIMAND_SAT_INSERT,
@@ -25,55 +23,30 @@ pub struct FrAig {
 }
 
 impl FrAig {
-    fn default_lazy_cexs(nodes: &[AigNode]) -> Vec<SimulationWord> {
-        let mut rng = thread_rng();
-        let mut ret = Vec::with_capacity(nodes.len());
-        let ret_remain = ret.spare_capacity_mut();
-        ret_remain[0].write(SIMULATION_TRUE_WORD);
-        for node in nodes.iter().skip(1) {
-            if node.is_and() {
-                let fanin0 = node.fanin0();
-                let fanin1 = node.fanin1();
-                let v0 = if fanin0.compl() {
-                    !unsafe { ret_remain[fanin0.node_id()].assume_init() }
-                } else {
-                    unsafe { ret_remain[fanin0.node_id()].assume_init() }
-                };
-                let v1 = if fanin1.compl() {
-                    !unsafe { ret_remain[fanin1.node_id()].assume_init() }
-                } else {
-                    unsafe { ret_remain[fanin1.node_id()].assume_init() }
-                };
-                ret_remain[node.node_id()].write(v0 & v1);
-            } else {
-                ret_remain[node.node_id()].write(rng.gen());
-            }
+    fn default_lazy_cexs(&self) -> Vec<SimulationWord> {
+        let mut ret = Vec::with_capacity(self.simulation.num_nodes());
+        let ret_remains = ret.spare_capacity_mut();
+        for (i, ret_remain) in ret_remains.iter_mut().enumerate() {
+            ret_remain.write(self.simulation[i][0]);
         }
-        unsafe { ret.set_len(nodes.len()) }
+        unsafe { ret.set_len(self.simulation.num_nodes()) }
         ret
     }
 
-    fn submit_lazy(&mut self, nodes: &[AigNode]) {
+    fn submit_lazy(&mut self) {
+        let default_lazy = self.default_lazy_cexs();
         self.simulation
-            .add_words(replace(&mut self.lazy_cex, Self::default_lazy_cexs(nodes)));
+            .add_words(replace(&mut self.lazy_cex, default_lazy));
         self.ncex = 0;
-        let old_map = replace(&mut self.sim_map, HashMap::with_capacity(nodes.len() * 4));
+        let old_map = replace(
+            &mut self.sim_map,
+            HashMap::with_capacity(self.simulation.num_nodes() * 4),
+        );
         for (_, rep_lazys) in old_map {
-            for rep_lazy in rep_lazys {
-                let (hash_value, compl) = self.simulation.abs_hash_value(rep_lazy);
+            for rep_lazy in rep_lazys.iter() {
+                let (hash_value, compl) = self.simulation.abs_hash_value(*rep_lazy);
                 assert!(!compl);
-                if let Some(_) = self.sim_map.insert(hash_value, vec![rep_lazy]) {
-                    unsafe { TOTAL_BUG += 1 };
-                    // dbg!(rep_lazy);
-                    // println!("{} {}", self.simulation[rep_lazy.node_id()], hash_value);
-                    // dbg!(&a);
-                    // println!(
-                    //     "{} {}",
-                    //     self.simulation[a[0].node_id()],
-                    //     self.simulation[a[0].node_id()].abs_hash_value()
-                    // );
-                    // panic!()
-                }
+                assert!(self.sim_map.insert(hash_value, vec![*rep_lazy]).is_none());
             }
         }
     }
@@ -110,7 +83,7 @@ impl FrAig {
         self.lazy_resimulate(nodes);
         self.ncex += 1;
         if self.ncex == SimulationWord::BITS as usize {
-            self.submit_lazy(nodes)
+            self.submit_lazy();
         }
     }
 
@@ -161,6 +134,10 @@ impl FrAig {
                     if lazy_value_closure(can, &self.lazy_cex)
                         != new_and_lazy_closure(&self.lazy_cex)
                     {
+                        assert!(
+                            lazy_value_closure(!can, &self.lazy_cex)
+                                != new_and_lazy_closure(&self.lazy_cex)
+                        );
                         continue;
                     }
                     unsafe { TOTAL_FRAIG_ADD_SAT += 1 };
@@ -320,9 +297,11 @@ impl Aig {
                 self.fraig = Some(FrAig {
                     simulation,
                     sim_map,
-                    lazy_cex: FrAig::default_lazy_cexs(&self.nodes),
+                    lazy_cex: Vec::new(),
                     ncex: 0,
                 });
+                self.fraig.as_mut().unwrap().lazy_cex =
+                    self.fraig.as_ref().unwrap().default_lazy_cexs();
                 dbg!(self.fraig.as_ref().unwrap().nword());
                 return;
             } else {
