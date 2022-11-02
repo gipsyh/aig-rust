@@ -5,7 +5,7 @@ use crate::{
     },
     symbolic_mc::{
         TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM, TOTAL_SIMAND,
-        TOTAL_SIMAND_INSERT,
+        TOTAL_SIMAND_NOSAT_INSERT, TOTAL_SIMAND_SAT_INSERT,
     },
     Aig, AigEdge, AigNode, AigNodeId,
 };
@@ -27,27 +27,29 @@ pub struct FrAig {
 impl FrAig {
     fn default_lazy_cexs(nodes: &[AigNode]) -> Vec<SimulationWord> {
         let mut rng = thread_rng();
-        let mut ret = Vec::new();
-        ret.push(SIMULATION_TRUE_WORD);
+        let mut ret = Vec::with_capacity(nodes.len());
+        let ret_remain = ret.spare_capacity_mut();
+        ret_remain[0].write(SIMULATION_TRUE_WORD);
         for node in nodes.iter().skip(1) {
             if node.is_and() {
                 let fanin0 = node.fanin0();
                 let fanin1 = node.fanin1();
                 let v0 = if fanin0.compl() {
-                    !ret[fanin0.node_id()]
+                    !unsafe { ret_remain[fanin0.node_id()].assume_init() }
                 } else {
-                    ret[fanin0.node_id()]
+                    unsafe { ret_remain[fanin0.node_id()].assume_init() }
                 };
                 let v1 = if fanin1.compl() {
-                    !ret[fanin1.node_id()]
+                    !unsafe { ret_remain[fanin1.node_id()].assume_init() }
                 } else {
-                    ret[fanin1.node_id()]
+                    unsafe { ret_remain[fanin1.node_id()].assume_init() }
                 };
-                ret.push(v0 & v1);
+                ret_remain[node.node_id()].write(v0 & v1);
             } else {
-                ret.push(rng.gen())
+                ret_remain[node.node_id()].write(rng.gen());
             }
         }
+        unsafe { ret.set_len(nodes.len()) }
         ret
     }
 
@@ -55,7 +57,7 @@ impl FrAig {
         self.simulation
             .add_words(replace(&mut self.lazy_cex, Self::default_lazy_cexs(nodes)));
         self.ncex = 0;
-        let old_map = take(&mut self.sim_map);
+        let old_map = replace(&mut self.sim_map, HashMap::with_capacity(nodes.len() * 4));
         for (_, rep_lazys) in old_map {
             for rep_lazy in rep_lazys {
                 let (hash_value, compl) = self.simulation.abs_hash_value(rep_lazy);
@@ -184,14 +186,14 @@ impl FrAig {
                         .insert(sim.abs_hash_value(), vec![new_edge])
                         .is_none()),
                 };
-                unsafe { TOTAL_SIMAND_INSERT += 1 };
+                unsafe { TOTAL_SIMAND_SAT_INSERT += 1 };
                 self.simulation.add_node(sim);
                 self.lazy_cex.push(new_and_lazy_closure(&self.lazy_cex));
                 None
             }
             None => {
                 let new_edge = AigEdge::new(self.simulation.num_nodes(), sim.compl());
-                unsafe { TOTAL_SIMAND_INSERT += 1 };
+                unsafe { TOTAL_SIMAND_NOSAT_INSERT += 1 };
                 assert!(self
                     .sim_map
                     .insert(sim.abs_hash_value(), vec![new_edge])

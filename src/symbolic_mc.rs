@@ -2,7 +2,8 @@ use crate::{Aig, AigEdge, AigNodeId};
 use std::{assert_matches::assert_matches, mem::swap};
 
 pub static mut TOTAL_SIMAND: usize = 0;
-pub static mut TOTAL_SIMAND_INSERT: usize = 0;
+pub static mut TOTAL_SIMAND_SAT_INSERT: usize = 0;
+pub static mut TOTAL_SIMAND_NOSAT_INSERT: usize = 0;
 pub static mut TOTAL_RESIM: usize = 0;
 pub static mut TOTAL_BUG: usize = 0;
 pub static mut TOTAL_ADD_PATTERN: usize = 0;
@@ -159,14 +160,15 @@ impl Aig {
                 dbg!(self.fraig.as_ref().unwrap().nword());
             }
             frontier = self.migrate_logic(&latch_map, equation);
-            frontier = self.new_and_node(frontier, !reach);
             let reach_new = self.new_or_node(reach, frontier);
+            frontier = self.new_and_node(frontier, !reach);
             if reach != reach_new {
                 reach = reach_new
             } else {
                 dbg!(deep);
                 dbg!(unsafe { TOTAL_SIMAND });
-                dbg!(unsafe { TOTAL_SIMAND_INSERT });
+                dbg!(unsafe { TOTAL_SIMAND_NOSAT_INSERT });
+                dbg!(unsafe { TOTAL_SIMAND_SAT_INSERT });
                 dbg!(unsafe { TOTAL_RESIM });
                 dbg!(unsafe { TOTAL_BUG });
                 dbg!(unsafe { TOTAL_ADD_PATTERN });
