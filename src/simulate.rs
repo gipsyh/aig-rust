@@ -3,7 +3,7 @@ use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::{
     fmt::{Display, Formatter, Result},
     iter::repeat,
-    mem::take,
+    mem::{replace, take},
     ops::Index,
     simd::Simd,
 };
@@ -294,7 +294,7 @@ impl Simulation {
 
 impl Simulation {
     pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
-        let old = take(&mut self.simulations);
+        let old = replace(&mut self.simulations, Vec::with_capacity(node_map.len()));
         for (id, old_sim) in old.into_iter().enumerate() {
             if let Some(dst) = node_map[id] {
                 assert_eq!(dst, self.simulations.len());

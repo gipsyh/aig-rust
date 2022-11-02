@@ -40,7 +40,7 @@ impl FrAig {
         self.ncex = 0;
         let old_map = replace(
             &mut self.sim_map,
-            HashMap::with_capacity(self.simulation.num_nodes() * 4),
+            HashMap::with_capacity(self.simulation.num_nodes()),
         );
         for (_, rep_lazys) in old_map {
             for rep_lazy in rep_lazys.iter() {

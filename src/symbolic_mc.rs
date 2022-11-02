@@ -17,7 +17,7 @@ impl EliminateOrder {
         Self { inputs }
     }
 
-    fn get_node(&mut self, aig: &Aig, observes: &[AigEdge]) -> Option<AigNodeId> {
+    fn get_node(&mut self, aig: &Aig, observes: &[AigEdge]) -> Option<(AigNodeId, usize)> {
         let fanin = aig.fanin_logic_cone(observes);
         if self.inputs.is_empty() {
             return None;
@@ -27,7 +27,6 @@ impl EliminateOrder {
             .iter()
             .map(|input| aig.calculate_expect_size(*input, &fanin))
             .collect();
-        // dbg!(&expect);
         let mut min_now = expect[0];
         let mut ret = 0;
         for (i, e) in expect.iter().enumerate().skip(1) {
@@ -36,7 +35,7 @@ impl EliminateOrder {
                 ret = i;
             }
         }
-        Some(self.inputs.remove(ret))
+        Some((self.inputs.remove(ret), min_now))
     }
 
     fn cleanup_redundant(&mut self, nodes_map: &[Option<AigNodeId>]) {
@@ -134,9 +133,9 @@ impl Aig {
             }
             let mut equation = self.new_and_node(frontier, transition);
             let mut eliminate_order = EliminateOrder::new(inputs.clone());
-            while let Some(mut enode) = eliminate_order.get_node(self, &[equation]) {
+            while let Some((mut enode, expect)) = eliminate_order.get_node(self, &[equation]) {
                 assert!(self.nodes[enode].is_prime_input());
-                {
+                if expect > 100 {
                     let nodes_map = self.cleanup_redundant(&mut [
                         &mut frontier,
                         &mut reach,
