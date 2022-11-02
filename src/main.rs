@@ -8,7 +8,7 @@ fn main() {
         // Aig::from_file("../MC-Benchmark/hwmcc20/aig/2019/goel/crafted/paper_v3/paper_v3.aag")
         // Aig::from_file("../MC-Benchmark/hwmcc17/single/bj08amba2g1.aag") // nusmv 10s
         // Aig::from_file("../MC-Benchmark/hwmcc17/single/shift1add262144.aag") // good
-        Aig::from_file("../MC-Benchmark/hwmcc15/single/vis4arbitp1.aag")// 56s vs 64ms
+        Aig::from_file("../MC-Benchmark/hwmcc15/single/vis4arbitp1.aag")// 22s vs 64ms
         // Aig::from_file("../MC-Benchmark/hwmcc19/single/aig/goel/industry/cal9/cal9.aag") // ? vs 30s
         // Aig::from_file("../MC-Benchmark/hwmcc19/single/aig/goel/opensource/vis_arrays_buf_bug/vis_arrays_buf_bug.aag") // ? vs bug 2s
         // Aig::from_file("../MC-Benchmark/hwmcc19/single/aig/goel/opensource/vcegar_QF_BV_itc99_b13_p06/vcegar_QF_BV_itc99_b13_p06.aag") // both fast

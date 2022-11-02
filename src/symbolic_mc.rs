@@ -156,8 +156,10 @@ impl Aig {
                 }
                 equation = self.eliminate_input(enode, vec![equation])[0];
                 dbg!(self.num_nodes());
+                dbg!(self.fraig.as_ref().unwrap().nword());
             }
             frontier = self.migrate_logic(&latch_map, equation);
+            frontier = self.new_and_node(frontier, !reach);
             let reach_new = self.new_or_node(reach, frontier);
             if reach != reach_new {
                 reach = reach_new
