@@ -27,10 +27,15 @@ pub type SimulationWordsHash = SimulationWord;
 
 #[inline]
 fn hash_function(hash: &mut SimulationWordsHash, mut word: SimulationWord) {
-    word = ((word >> 16) ^ word) * 0x45d9f3b;
-    word = ((word >> 16) ^ word) * 0x45d9f3b;
+    word = unsafe { ((word >> 16) ^ word).unchecked_mul(0x45d9f3b) };
+    word = unsafe { ((word >> 16) ^ word).unchecked_mul(0x45d9f3b) };
     word = (word >> 16) ^ word;
-    *hash = *hash ^ (word + 0x9e3779b9 + (*hash << 6) + (*hash >> 2));
+    *hash = *hash
+        ^ unsafe {
+            word.unchecked_add(0x9e3779b9)
+                .unchecked_add(*hash << 6)
+                .unchecked_add(*hash >> 2)
+        };
 }
 
 #[inline]
@@ -295,8 +300,17 @@ impl Simulation {
 impl Simulation {
     pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
         let old = replace(&mut self.simulations, Vec::with_capacity(node_map.len()));
-        for (id, old_sim) in old.into_iter().enumerate() {
+        for (id, mut old_sim) in old.into_iter().enumerate() {
             if let Some(dst) = node_map[id] {
+                let ncopy = (old_sim.simd_words.len() - 1) / 2;
+                // if ncopy > 0 {
+                //     for i in 0..ncopy {
+                //         old_sim.simd_words[1 + i] =
+                //             old_sim.simd_words[old_sim.simd_words.len() - ncopy + i];
+                //     }
+                //     unsafe { old_sim.simd_words.set_len(1 + ncopy) };
+                //     old_sim.calculate_hash();
+                // }
                 assert_eq!(dst, self.simulations.len());
                 self.simulations.push(old_sim);
             }

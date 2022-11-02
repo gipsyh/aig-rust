@@ -2,7 +2,7 @@ use crate::{
     sat::{self},
     Aig, AigEdge, AigLatch, AigNode,
 };
-use std::{collections::HashMap, io, mem::take, path::Path};
+use std::{collections::HashMap, io, path::Path};
 
 impl Aig {
     fn setup_levels(&mut self) {
@@ -18,19 +18,19 @@ impl Aig {
     }
 
     fn setup_fanouts(&mut self) {
-        let mut fanouts = vec![vec![]; self.num_nodes()];
-        for and in self.ands_iter() {
-            let fanin0 = and.fanin0();
-            let fanin0id = fanin0.node_id();
-            let compl = fanin0.compl();
-            fanouts[fanin0id].push(AigEdge::new(and.id, compl));
-            let fanin1 = and.fanin1();
-            let fanin1id = fanin1.node_id();
-            let compl = fanin1.compl();
-            fanouts[fanin1id].push(AigEdge::new(and.id, compl));
-        }
-        for (id, node) in fanouts.iter_mut().enumerate() {
-            self.nodes[id].fanouts = take(node);
+        for id in self.nodes_range() {
+            if self.nodes[id].is_and() {
+                let fanin0 = self.nodes[id].fanin0();
+                let compl = fanin0.compl();
+                self.nodes[fanin0.node_id()]
+                    .fanouts
+                    .push(AigEdge::new(id, compl));
+                let fanin1 = self.nodes[id].fanin1();
+                let compl = fanin1.compl();
+                self.nodes[fanin1.node_id()]
+                    .fanouts
+                    .push(AigEdge::new(id, compl));
+            }
         }
     }
 

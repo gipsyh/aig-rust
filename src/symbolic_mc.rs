@@ -8,6 +8,7 @@ pub static mut TOTAL_RESIM: usize = 0;
 pub static mut TOTAL_BUG: usize = 0;
 pub static mut TOTAL_ADD_PATTERN: usize = 0;
 pub static mut TOTAL_FRAIG_ADD_SAT: usize = 0;
+pub static mut TOTAL_FE_MERGE_NODE: usize = 0;
 struct EliminateOrder {
     inputs: Vec<AigNodeId>,
 }

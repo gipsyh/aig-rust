@@ -2,8 +2,8 @@ use crate::{
     sat::SatSolver,
     simulate::{Simulation, SimulationWord, SimulationWords, SimulationWordsHash},
     symbolic_mc::{
-        TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM, TOTAL_SIMAND,
-        TOTAL_SIMAND_NOSAT_INSERT, TOTAL_SIMAND_SAT_INSERT,
+        TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FE_MERGE_NODE, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM,
+        TOTAL_SIMAND, TOTAL_SIMAND_NOSAT_INSERT, TOTAL_SIMAND_SAT_INSERT,
     },
     Aig, AigEdge, AigNode, AigNodeId,
 };
@@ -17,7 +17,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct FrAig {
     simulation: Simulation,
-    sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
+    pub sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
     lazy_cex: Vec<SimulationWord>,
     ncex: usize,
 }
@@ -46,7 +46,9 @@ impl FrAig {
             for rep_lazy in rep_lazys.iter() {
                 let (hash_value, compl) = self.simulation.abs_hash_value(*rep_lazy);
                 assert!(!compl);
-                assert!(self.sim_map.insert(hash_value, vec![*rep_lazy]).is_none());
+                if let Some(_) = self.sim_map.insert(hash_value, vec![*rep_lazy]) {
+                    panic!()
+                }
             }
         }
     }
@@ -85,6 +87,12 @@ impl FrAig {
         if self.ncex == SimulationWord::BITS as usize {
             self.submit_lazy();
         }
+    }
+}
+
+impl FrAig {
+    pub fn nword(&self) -> usize {
+        self.simulation.nword()
     }
 
     pub fn new_input_node(&mut self, node: AigNodeId) {
@@ -184,39 +192,6 @@ impl FrAig {
 }
 
 impl FrAig {
-    pub fn nword(&self) -> usize {
-        self.simulation.nword()
-    }
-
-    pub fn cleanup_redundant(&mut self, node_map: &[Option<AigNodeId>]) {
-        self.simulation.cleanup_redundant(node_map);
-        let mut should_remove = Vec::new();
-        for (k, cans) in &mut self.sim_map {
-            let old = take(cans);
-            for mut o in old {
-                if let Some(dst) = node_map[o.node_id()] {
-                    o.set_nodeid(dst);
-                    cans.push(o);
-                }
-            }
-            if cans.is_empty() {
-                should_remove.push(*k);
-            }
-        }
-        for should in should_remove {
-            assert!(self.sim_map.remove(&should).is_some());
-        }
-        let old = take(&mut self.lazy_cex);
-        for (id, old_sim) in old.into_iter().enumerate() {
-            if let Some(dst) = node_map[id] {
-                assert_eq!(dst, self.lazy_cex.len());
-                self.lazy_cex.push(old_sim);
-            }
-        }
-    }
-}
-
-impl Aig {
     fn gen_pattern(nodes: &[AigNode], s: &[AigEdge]) -> Vec<bool> {
         let mut r = thread_rng();
         let mut flags = vec![false; nodes.len()];
@@ -243,6 +218,89 @@ impl Aig {
         ret
     }
 
+    pub fn cleanup_redundant(
+        &mut self,
+        node_map: &[Option<AigNodeId>],
+        sat_solver: &mut dyn SatSolver,
+        nodes: &[AigNode],
+    ) {
+        self.simulation.cleanup_redundant(node_map);
+        let mut should_remove = Vec::new();
+        for (k, cans) in &mut self.sim_map {
+            let old = take(cans);
+            for mut o in old {
+                if let Some(dst) = node_map[o.node_id()] {
+                    o.set_nodeid(dst);
+                    cans.push(o);
+                }
+            }
+            if cans.is_empty() {
+                should_remove.push(*k);
+            }
+        }
+        for should in should_remove {
+            assert!(self.sim_map.remove(&should).is_some());
+        }
+        let old = take(&mut self.lazy_cex);
+        for (id, old_sim) in old.into_iter().enumerate() {
+            if let Some(dst) = node_map[id] {
+                assert_eq!(dst, self.lazy_cex.len());
+                self.lazy_cex.push(old_sim);
+            }
+        }
+        let mut remain = 0;
+        for node in self.sim_map.values() {
+            remain += node.len();
+        }
+        assert!(remain == nodes.len());
+        // let mut sum_word = 0;
+        // loop {
+        //     let mut patterns = Vec::new();
+        //     let mut hash_map: HashMap<SimulationWordsHash, AigEdge> = HashMap::new();
+        //     let mut update = false;
+        //     for node in self.sim_map.values() {
+        //         if let Some(collision) = hash_map.get(&self.simulation.abs_hash_value(node[0]).0) {
+        //             let s = sat_solver.equivalence_check(*collision, node[0]).unwrap();
+        //             patterns.push(Self::gen_pattern(nodes, s));
+        //             update = true;
+        //         } else {
+        //             assert!(hash_map
+        //                 .insert(self.simulation.abs_hash_value(node[0]).0, node[0])
+        //                 .is_none());
+        //         }
+        //     }
+        //     if update {
+        //         let mut words = vec![0; nodes.len()];
+        //         for (bit, pattern) in patterns.into_iter().enumerate() {
+        //             if bit > 0 && bit % (SimulationWord::BITS as usize) == 0 {
+        //                 let submit = replace(&mut words, vec![0; nodes.len()]);
+        //                 sum_word += 1;
+        //                 self.simulation.add_words(submit);
+        //             }
+        //             for (idx, p) in pattern.into_iter().enumerate() {
+        //                 if p {
+        //                     words[idx] |= 1 << bit;
+        //                 }
+        //             }
+        //         }
+        //         sum_word += 1;
+        //         self.simulation.add_words(words);
+        //     } else {
+        //         let old = take(&mut self.sim_map);
+        //         for (_, node) in old {
+        //             assert!(self
+        //                 .sim_map
+        //                 .insert(self.simulation.abs_hash_value(node[0]).0, node)
+        //                 .is_none());
+        //         }
+        //         break;
+        //     }
+        // }
+        // dbg!(sum_word);
+    }
+}
+
+impl Aig {
     fn get_candidate(
         &mut self,
         simulation: &Simulation,
@@ -276,13 +334,14 @@ impl Aig {
                 }
                 for c in &candidate[1..] {
                     if let Some(s) = self.sat_solver.equivalence_check(candidate[0], *c) {
-                        patterns.push(Self::gen_pattern(&self.nodes, s));
+                        patterns.push(FrAig::gen_pattern(&self.nodes, s));
                         update = true;
                     }
                 }
             }
             if !update {
                 let mut sim_map = HashMap::new();
+                let mut should_merge = Vec::new();
                 for (k, candidate) in &candidates {
                     assert_eq!(*k, simulation.abs_hash_value(candidate[0]).0);
                     assert!(sim_map.insert(*k, vec![candidate[0]]).is_none());
@@ -291,8 +350,13 @@ impl Aig {
                             unsafe { TOTAL_BUG += 1 };
                         }
                         assert_eq!(*k, simulation.abs_hash_value(*c).0);
-                        self.merge_fe_node(*c, candidate[0]);
+                        should_merge.push((*c, candidate[0]));
                     }
+                }
+                should_merge.sort_by(|x, y| x.0.cmp(&y.0));
+                for (x, y) in should_merge {
+                    unsafe { TOTAL_FE_MERGE_NODE += 1 };
+                    self.merge_fe_node(x, y);
                 }
                 self.fraig = Some(FrAig {
                     simulation,
@@ -302,7 +366,7 @@ impl Aig {
                 });
                 self.fraig.as_mut().unwrap().lazy_cex =
                     self.fraig.as_ref().unwrap().default_lazy_cexs();
-                dbg!(self.fraig.as_ref().unwrap().nword());
+                self.cleanup_redundant(&mut []);
                 return;
             } else {
                 assert!(self.num_nodes() == patterns[0].len());

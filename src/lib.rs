@@ -235,10 +235,6 @@ impl Aig {
     // }
 
     pub fn new_input_node(&mut self) -> AigNodeId {
-        // let nodeid = match self.node_gc.alloc_input_node() {
-        //     Some(id) => id,
-        //     None => self.nodes.len(),
-        // };
         let nodeid = self.nodes.len();
         let input = AigNode::new_prime_input(nodeid);
         if let Some(fraig) = &mut self.fraig {
@@ -339,14 +335,17 @@ impl Aig {
         let replaced = replaced.node_id();
         let by = by.node_id();
         assert!(replaced > by);
+        self.nodes[by].fanouts.retain(|e| e.node_id() != replaced);
         let fanouts = take(&mut self.nodes[replaced].fanouts);
         for fanout in fanouts {
             let fanout_node_id = fanout.node_id();
-            let fanout_node = &mut self.nodes[fanout_node_id];
-            // self.strash_map.remove(&fanout_node.strash_key()).unwrap();
-            let mut fanin0 = fanout_node.fanin0();
-            let mut fanin1 = fanout_node.fanin1();
+            let mut fanin0 = self.nodes[fanout_node_id].fanin0();
+            let mut fanin1 = self.nodes[fanout_node_id].fanin1();
             assert!(fanin0.node_id() < fanin1.node_id());
+            // assert!(self
+            //     .strash_map
+            //     .remove(&self.nodes[fanout_node_id].strash_key())
+            //     .is_some());
             if fanin0.node_id() == replaced {
                 assert_eq!(fanout.compl(), fanin0.compl());
                 fanin0 = AigEdge::new(by, fanout.compl() ^ compl);
@@ -358,15 +357,40 @@ impl Aig {
             if fanin0.node_id() > fanin1.node_id() {
                 swap(&mut fanin0, &mut fanin1);
             }
-            fanout_node.set_fanin0(fanin0);
-            fanout_node.set_fanin1(fanin1);
+            self.nodes[fanout_node_id].set_fanin0(fanin0);
+            self.nodes[fanout_node_id].set_fanin1(fanin1);
+
             self.nodes[fanout_node_id].level = self.nodes[fanin0.node_id()]
                 .level
                 .max(self.nodes[fanin1.node_id()].level)
                 + 1;
             self.nodes[by].fanouts.push(fanout);
-            let _strash_key = self.nodes[fanout_node_id].strash_key();
+            // let _strash_key = self.nodes[fanout_node_id].strash_key();
             // assert!(self.strash_map.insert(strash_key, fanout_node_id).is_none());
+        }
+        for latch in &mut self.latchs {
+            if latch.next.node_id() == replaced {
+                latch.next.set_nodeid(by);
+                if compl {
+                    latch.next = !latch.next;
+                }
+            }
+        }
+        for out in &mut self.outputs {
+            if out.node_id() == replaced {
+                out.set_nodeid(by);
+                if compl {
+                    *out = !*out
+                }
+            }
+        }
+        for bad in &mut self.bads {
+            if bad.node_id() == replaced {
+                bad.set_nodeid(by)
+            }
+            if compl {
+                *bad = !*bad
+            }
         }
     }
 }
@@ -469,12 +493,11 @@ impl Aig {
                 self.nodes.push(node);
             }
         }
-        // if self.fraig.as_ref().unwrap().nword() > 2000 {
-        //     self.fraig = None;
-        //     self.fraig(true);
-        // } else {
-        self.fraig.as_mut().unwrap().cleanup_redundant(&node_map);
-        // }
+        self.fraig.as_mut().unwrap().cleanup_redundant(
+            &node_map,
+            self.sat_solver.as_mut(),
+            &self.nodes,
+        );
         for latch in &mut self.latchs {
             latch.input = node_map[latch.input].unwrap();
             latch
