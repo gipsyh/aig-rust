@@ -9,6 +9,7 @@ pub static mut TOTAL_BUG: usize = 0;
 pub static mut TOTAL_ADD_PATTERN: usize = 0;
 pub static mut TOTAL_FRAIG_ADD_SAT: usize = 0;
 pub static mut TOTAL_FE_MERGE_NODE: usize = 0;
+pub static mut TOTAL_STASH_GET: usize = 0;
 struct EliminateOrder {
     inputs: Vec<AigNodeId>,
 }
@@ -173,6 +174,7 @@ impl Aig {
                 dbg!(unsafe { TOTAL_BUG });
                 dbg!(unsafe { TOTAL_ADD_PATTERN });
                 dbg!(unsafe { TOTAL_FRAIG_ADD_SAT });
+                dbg!(unsafe { TOTAL_STASH_GET });
                 dbg!(self.fraig.as_ref().unwrap().nword());
                 return true;
             }

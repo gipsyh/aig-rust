@@ -1,22 +1,46 @@
-use crate::Aig;
+use crate::{AigEdge, AigNode, AigNodeId};
+use std::collections::HashMap;
 
-impl Aig {
-    pub fn setup_strash(&mut self) {
-        for and_id in 0..self.num_nodes() {
-            if !self.nodes[and_id].is_and() {
-                continue;
-            }
-            let fanin0 = self.nodes[and_id].fanin0();
-            let fanin1 = self.nodes[and_id].fanin1();
-            assert!(fanin0.node_id() < fanin1.node_id());
-            match self.strash_map.get(&(fanin0, fanin1)) {
-                Some(_) => {
-                    todo!()
-                }
-                None => {
-                    self.strash_map.insert((fanin0, fanin1), and_id);
+#[derive(Debug)]
+pub struct Strash {
+    map: HashMap<(AigEdge, AigEdge), AigNodeId>,
+}
+
+impl Strash {
+    pub fn find(&self, fanin0: AigEdge, fanin1: AigEdge) -> Option<AigEdge> {
+        assert!(fanin0 < fanin1);
+        self.map
+            .get(&(fanin0, fanin1))
+            .map(|r| AigEdge::new(*r, false))
+    }
+
+    pub fn add(&mut self, fanin0: AigEdge, fanin1: AigEdge, node: AigNodeId) {
+        assert!(fanin0 < fanin1);
+        assert!(self.map.insert((fanin0, fanin1), node).is_none());
+    }
+
+    pub fn remove(&mut self, fanin0: AigEdge, fanin1: AigEdge) {
+        assert!(fanin0 < fanin1);
+        assert!(self.map.remove(&(fanin0, fanin1)).is_some());
+    }
+
+    pub fn new(nodes: &[AigNode]) -> Self {
+        let mut map = HashMap::new();
+        for node in nodes.iter() {
+            if node.is_and() {
+                let fanin0 = node.fanin0();
+                let fanin1 = node.fanin1();
+                assert!(fanin0.node_id() < fanin1.node_id());
+                match map.get(&(fanin0, fanin1)) {
+                    Some(_) => {
+                        todo!()
+                    }
+                    None => {
+                        map.insert((fanin0, fanin1), node.id);
+                    }
                 }
             }
         }
+        Self { map }
     }
 }

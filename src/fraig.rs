@@ -260,9 +260,12 @@ impl FrAig {
         //     let mut update = false;
         //     for node in self.sim_map.values() {
         //         if let Some(collision) = hash_map.get(&self.simulation.abs_hash_value(node[0]).0) {
-        //             let s = sat_solver.equivalence_check(*collision, node[0]).unwrap();
-        //             patterns.push(Self::gen_pattern(nodes, s));
-        //             update = true;
+        //             if let Some(s) = sat_solver.equivalence_check(*collision, node[0]) {
+        //                 patterns.push(Self::gen_pattern(nodes, s));
+        //                 update = true;
+        //             } else {
+        //                 panic!()
+        //             }
         //         } else {
         //             assert!(hash_map
         //                 .insert(self.simulation.abs_hash_value(node[0]).0, node[0])

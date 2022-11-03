@@ -1,8 +1,9 @@
 use crate::{
     sat::{self},
+    strash::Strash,
     Aig, AigEdge, AigLatch, AigNode,
 };
-use std::{collections::HashMap, io, path::Path};
+use std::{io, path::Path};
 
 impl Aig {
     fn setup_levels(&mut self) {
@@ -86,6 +87,7 @@ impl Aig {
         }
 
         unsafe { nodes.set_len(header.i + header.l + header.a + 1) };
+        let strash = Strash::new(&nodes);
         let mut ret = Self {
             nodes,
             inputs,
@@ -93,14 +95,13 @@ impl Aig {
             outputs,
             bads,
             num_ands: header.a,
-            strash_map: HashMap::new(),
+            strash,
             fraig: None,
             // sat_solver: Box::new(sat::minisat::Solver::new()),
             sat_solver: Box::new(sat::abc_glucose::Solver::new()),
         };
         ret.setup_levels();
         ret.setup_fanouts();
-        // ret.setup_strash();
         ret.setup_sat_solver();
         Ok(ret)
     }
