@@ -311,7 +311,7 @@ impl Aig {
         let mut candidate_map: HashMap<SimulationWordsHash, Vec<AigEdge>> = HashMap::new();
         for idx in self.nodes_range_with_true() {
             let edge = AigEdge::new(idx, simulation[idx].compl());
-            match candidate_map.get_mut(&simulation[idx].abs_hash_value()) {
+            match candidate_map.get_mut(&simulation.abs_hash_value(edge).0) {
                 Some(candidate) => candidate.push(edge),
                 None => {
                     assert!(candidate_map
@@ -325,6 +325,7 @@ impl Aig {
 
     pub fn fraig(&mut self, flag: bool) {
         assert!(self.fraig.is_none());
+        dbg!(&self.bads);
         let mut simulation = self.new_simulation(1);
         loop {
             let candidates = self.get_candidate(&simulation);

@@ -16,7 +16,7 @@ impl Strash {
 
     pub fn add(&mut self, fanin0: AigEdge, fanin1: AigEdge, node: AigNodeId) {
         assert!(fanin0 < fanin1);
-        assert!(self.map.insert((fanin0, fanin1), node).is_none());
+        self.map.insert((fanin0, fanin1), node);
     }
 
     pub fn remove(&mut self, fanin0: AigEdge, fanin1: AigEdge) {

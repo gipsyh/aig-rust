@@ -20,8 +20,6 @@ use std::{
     ops::{Index, Not, Range},
     vec,
 };
-use strash::Strash;
-use symbolic_mc::TOTAL_STASH_GET;
 
 type AigNodeId = usize;
 
@@ -136,7 +134,7 @@ impl AigNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct AigEdge {
     id: AigNodeId,
     complement: bool,
@@ -157,6 +155,18 @@ impl From<AigNodeId> for AigEdge {
             id: value,
             complement: false,
         }
+    }
+}
+
+impl PartialOrd for AigEdge {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for AigEdge {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
     }
 }
 
@@ -203,7 +213,7 @@ pub struct Aig {
     outputs: Vec<AigEdge>,
     bads: Vec<AigEdge>,
     num_ands: usize,
-    strash: Strash,
+    // strash: Strash,
     fraig: Option<FrAig>,
     sat_solver: Box<dyn SatSolver>,
 }
@@ -266,10 +276,10 @@ impl Aig {
         } else if fanin0 == !fanin1 {
             Aig::constant_edge(false)
         } else {
-            if let Some(edge) = self.strash.find(fanin0, fanin1) {
-                unsafe { TOTAL_STASH_GET += 1 };
-                return edge;
-            }
+            // if let Some(edge) = self.strash.find(fanin0, fanin1) {
+            //     unsafe { TOTAL_STASH_GET += 1 };
+            //     return edge;
+            // }
             let nodeid = self.nodes.len();
             if self.fraig.is_some() {
                 if let Some(and_edge) = self.fraig.as_mut().unwrap().new_and_node(
@@ -341,7 +351,7 @@ impl Aig {
             let mut fanin0 = self.nodes[fanout_node_id].fanin0();
             let mut fanin1 = self.nodes[fanout_node_id].fanin1();
             assert!(fanin0.node_id() < fanin1.node_id());
-            self.strash.remove(fanin0, fanin1);
+            // self.strash.remove(fanin0, fanin1);
             if fanin0.node_id() == replaced {
                 assert_eq!(fanout.compl(), fanin0.compl());
                 fanin0 = AigEdge::new(by, fanout.compl() ^ compl);
@@ -361,7 +371,7 @@ impl Aig {
                 .max(self.nodes[fanin1.node_id()].level)
                 + 1;
             self.nodes[by].fanouts.push(fanout);
-            self.strash.add(fanin0, fanin1, fanout_node_id);
+            // self.strash.add(fanin0, fanin1, fanout_node_id);
         }
         for latch in &mut self.latchs {
             if latch.next.node_id() == replaced {
@@ -381,10 +391,10 @@ impl Aig {
         }
         for bad in &mut self.bads {
             if bad.node_id() == replaced {
-                bad.set_nodeid(by)
-            }
-            if compl {
-                *bad = !*bad
+                bad.set_nodeid(by);
+                if compl {
+                    *bad = !*bad
+                }
             }
         }
     }
@@ -488,7 +498,7 @@ impl Aig {
                 self.nodes.push(node);
             }
         }
-        self.strash = Strash::new(&self.nodes);
+        // self.strash = Strash::new(&self.nodes);
         self.fraig.as_mut().unwrap().cleanup_redundant(
             &node_map,
             self.sat_solver.as_mut(),

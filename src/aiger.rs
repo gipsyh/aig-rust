@@ -87,7 +87,7 @@ impl Aig {
         }
 
         unsafe { nodes.set_len(header.i + header.l + header.a + 1) };
-        let strash = Strash::new(&nodes);
+        // let strash = Strash::new(&nodes);
         let mut ret = Self {
             nodes,
             inputs,
@@ -95,7 +95,7 @@ impl Aig {
             outputs,
             bads,
             num_ands: header.a,
-            strash,
+            // strash,
             fraig: None,
             // sat_solver: Box::new(sat::minisat::Solver::new()),
             sat_solver: Box::new(sat::abc_glucose::Solver::new()),
