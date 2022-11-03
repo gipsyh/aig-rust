@@ -56,7 +56,7 @@ impl Solver {
     #[allow(dead_code)]
     pub fn new() -> Self {
         let solver = minisat::Solver::new();
-        let vars = vec![Bool::Const(true)];
+        let vars = vec![Bool::Const(false)];
         Self {
             solver,
             vars,

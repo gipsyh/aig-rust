@@ -4,7 +4,7 @@ use std::fmt::Display;
 impl Display for AigNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.typ {
-            AigNodeType::True => write!(f, "True"),
+            AigNodeType::False => write!(f, "False"),
             AigNodeType::PrimeInput => write!(f, "PI{}", self.id),
             AigNodeType::LatchInput => write!(f, "LI{}", self.id),
             AigNodeType::And(_, _) => write!(f, "A{}", self.id),

@@ -107,13 +107,6 @@ impl Aig {
     }
 
     pub fn symbolic_mc(&mut self) -> bool {
-        if self.bads.is_empty() {
-            if !self.outputs.is_empty() {
-                self.bads.push(self.outputs[0]);
-            } else {
-                return true;
-            }
-        }
         let mut reach = self.latch_init_equation();
         let mut frontier = reach;
         let mut inputs = self.inputs.clone();
@@ -122,9 +115,6 @@ impl Aig {
         }
         let (mut latch_map, mut transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
-        for badid in 1..self.bads.len() {
-            bad = self.new_or_node(bad, self.bads[badid]);
-        }
         let mut deep = -1;
         loop {
             deep += 1;

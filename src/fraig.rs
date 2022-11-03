@@ -325,7 +325,6 @@ impl Aig {
 
     pub fn fraig(&mut self, flag: bool) {
         assert!(self.fraig.is_none());
-        dbg!(&self.bads);
         let mut simulation = self.new_simulation(1);
         loop {
             let candidates = self.get_candidate(&simulation);

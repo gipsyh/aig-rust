@@ -19,7 +19,7 @@ impl Aig {
 
     pub fn get_value(&self, inputs: &[bool], latchs: &[bool]) -> Vec<bool> {
         let mut value = vec![false; self.num_nodes()];
-        value[0] = true;
+        value[0] = false;
         for (i, l) in self.latchs.iter().enumerate() {
             value[l.input] = latchs[i];
         }
@@ -45,7 +45,6 @@ impl Aig {
         let mut reach = HashSet::new();
         reach.insert(self.get_latch_init());
         let mut frontier = reach.clone();
-
         for deep in 1.. {
             dbg!(deep);
             let mut new_frontier = HashSet::new();
@@ -54,16 +53,14 @@ impl Aig {
                     new_frontier.insert(self.get_value(&input, r));
                 }
             }
-            let mut update = false;
+            frontier.clear();
             for s in &new_frontier {
                 if !reach.contains(s) {
-                    update = true;
                     reach.insert(s.clone());
+                    frontier.insert(s.clone());
                 }
             }
-            if update {
-                frontier = new_frontier;
-            } else {
+            if frontier.is_empty() {
                 dbg!(deep);
                 return;
             }

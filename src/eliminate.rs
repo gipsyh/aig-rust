@@ -27,7 +27,7 @@ impl Aig {
                 }
             }
             if node == eid {
-                value[eid] = Some(Aig::constant_edge(!polarity));
+                value[eid] = Some(AigEdge::constant_edge(!polarity));
                 continue;
             }
             assert!(self.nodes[node].is_and());

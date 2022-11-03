@@ -1,6 +1,5 @@
 use crate::{
     sat::{self},
-    strash::Strash,
     Aig, AigEdge, AigLatch, AigNode,
 };
 use std::{io, path::Path};
@@ -41,7 +40,7 @@ impl Aig {
         let header = aiger.header();
         let mut nodes: Vec<AigNode> = Vec::with_capacity(header.i + header.l + header.a + 1);
         let nodes_remaining = nodes.spare_capacity_mut();
-        nodes_remaining[0].write(AigNode::new_true(0));
+        nodes_remaining[0].write(AigNode::new_false(0));
         let mut outputs = Vec::new();
         let mut bads = Vec::new();
         let mut inputs = Vec::new();

@@ -57,7 +57,10 @@ impl SatSolver for Solver {
     }
 
     fn solve_without_mark_cone(&mut self, assumptions: &[AigEdge]) -> Option<&[AigEdge]> {
-        if assumptions.iter().any(|e| *e == AigEdge::new(0, true)) {
+        if assumptions
+            .iter()
+            .any(|e| *e == AigEdge::constant_edge(false))
+        {
             return None;
         }
         let assumptions: Vec<Lit> = assumptions

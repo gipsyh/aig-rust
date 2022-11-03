@@ -12,7 +12,7 @@ pub type SimulationWord = u64;
 
 pub type SimdSimulationWord = Simd<SimulationWord, 64>;
 
-pub const SIMULATION_TRUE_WORD: SimulationWord = SimulationWord::MAX;
+pub const SIMULATION_FALSE_WORD: SimulationWord = 0;
 
 pub type SimulationWordsHash = SimulationWord;
 
@@ -94,16 +94,16 @@ impl SimulationWords {
         ret
     }
 
-    fn true_words(nword: usize) -> Self {
+    fn false_words(nword: usize) -> Self {
         let nsimd = nword / SimdSimulationWord::LANES;
         let nremain = nword % SimdSimulationWord::LANES;
         let simd_words = repeat(())
             .take(nsimd)
-            .map(|_| SimdSimulationWord::from([SIMULATION_TRUE_WORD; SimdSimulationWord::LANES]))
+            .map(|_| SimdSimulationWord::from([SIMULATION_FALSE_WORD; SimdSimulationWord::LANES]))
             .collect();
         let remain_words = repeat(())
             .take(nremain)
-            .map(|_| SIMULATION_TRUE_WORD)
+            .map(|_| SIMULATION_FALSE_WORD)
             .collect();
         SimulationWords::new_with_simd_words(simd_words, remain_words)
     }
@@ -330,7 +330,7 @@ impl Aig {
     pub fn new_simulation(&self, nsimd_word: usize) -> Simulation {
         let nwords = nsimd_word * SimdSimulationWord::LANES;
         let mut simulations = Simulation {
-            simulations: vec![SimulationWords::true_words(nwords)],
+            simulations: vec![SimulationWords::false_words(nwords)],
         };
         for node in &self.nodes[1..] {
             if node.is_and() {

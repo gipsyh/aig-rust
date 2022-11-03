@@ -25,7 +25,7 @@ type AigNodeId = usize;
 
 #[derive(Debug, Clone)]
 pub enum AigNodeType {
-    True,
+    False,
     PrimeInput,
     LatchInput,
     And(AigEdge, AigEdge),
@@ -94,10 +94,10 @@ impl AigNode {
 }
 
 impl AigNode {
-    fn new_true(id: usize) -> Self {
+    fn new_false(id: usize) -> Self {
         Self {
             id,
-            typ: AigNodeType::True,
+            typ: AigNodeType::False,
             fanouts: Vec::new(),
             level: 0,
         }
@@ -190,6 +190,13 @@ impl AigEdge {
     pub fn set_compl(&mut self, compl: bool) {
         self.complement = compl
     }
+
+    fn constant_edge(polarity: bool) -> Self {
+        AigEdge {
+            id: 0,
+            complement: polarity,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -218,14 +225,7 @@ pub struct Aig {
     sat_solver: Box<dyn SatSolver>,
 }
 
-impl Aig {
-    fn constant_edge(polarity: bool) -> AigEdge {
-        AigEdge {
-            id: 0,
-            complement: !polarity,
-        }
-    }
-}
+impl Aig {}
 
 impl Aig {
     // fn new() -> Self {
@@ -259,22 +259,22 @@ impl Aig {
         if fanin0.node_id() > fanin1.node_id() {
             swap(&mut fanin0, &mut fanin1);
         }
-        if fanin0 == Aig::constant_edge(true) {
+        if fanin0 == AigEdge::constant_edge(true) {
             return fanin1;
         }
-        if fanin0 == Aig::constant_edge(false) {
-            return Aig::constant_edge(false);
+        if fanin0 == AigEdge::constant_edge(false) {
+            return AigEdge::constant_edge(false);
         }
-        if fanin1 == Aig::constant_edge(true) {
+        if fanin1 == AigEdge::constant_edge(true) {
             return fanin0;
         }
-        if fanin1 == Aig::constant_edge(false) {
-            return Aig::constant_edge(false);
+        if fanin1 == AigEdge::constant_edge(false) {
+            return AigEdge::constant_edge(false);
         }
         if fanin0 == fanin1 {
             fanin0
         } else if fanin0 == !fanin1 {
-            Aig::constant_edge(false)
+            AigEdge::constant_edge(false)
         } else {
             // if let Some(edge) = self.strash.find(fanin0, fanin1) {
             //     unsafe { TOTAL_STASH_GET += 1 };
