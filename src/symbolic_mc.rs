@@ -5,11 +5,11 @@ pub static mut TOTAL_SIMAND: usize = 0;
 pub static mut TOTAL_SIMAND_SAT_INSERT: usize = 0;
 pub static mut TOTAL_SIMAND_NOSAT_INSERT: usize = 0;
 pub static mut TOTAL_RESIM: usize = 0;
-pub static mut TOTAL_BUG: usize = 0;
 pub static mut TOTAL_ADD_PATTERN: usize = 0;
 pub static mut TOTAL_FRAIG_ADD_SAT: usize = 0;
 pub static mut TOTAL_FE_MERGE_NODE: usize = 0;
 pub static mut TOTAL_STASH_GET: usize = 0;
+pub static mut TOTAL_FRAIG_LAZY_CHECKED_WITHOUT_SAT: usize = 0;
 struct EliminateOrder {
     inputs: Vec<AigNodeId>,
 }
@@ -61,6 +61,19 @@ impl Aig {
 }
 
 impl Aig {
+    fn print_info(&self, deep: usize) {
+        dbg!(deep);
+        dbg!(unsafe { TOTAL_SIMAND });
+        dbg!(unsafe { TOTAL_SIMAND_NOSAT_INSERT });
+        dbg!(unsafe { TOTAL_SIMAND_SAT_INSERT });
+        dbg!(unsafe { TOTAL_RESIM });
+        dbg!(unsafe { TOTAL_ADD_PATTERN });
+        dbg!(unsafe { TOTAL_FRAIG_ADD_SAT });
+        dbg!(unsafe { TOTAL_STASH_GET });
+        dbg!(unsafe { TOTAL_FRAIG_LAZY_CHECKED_WITHOUT_SAT });
+        dbg!(self.fraig.as_ref().unwrap().nword());
+    }
+
     pub fn symbolic_mc_back(&mut self) -> bool {
         if self.bads.is_empty() {
             return true;
@@ -115,12 +128,12 @@ impl Aig {
         }
         let (mut latch_map, mut transition) = self.transfer_latch_outputs_into_pinputs();
         let mut bad = self.bads[0];
-        let mut deep = -1;
+        let mut deep = 0;
         loop {
             deep += 1;
             println!("deep {} begin, num nodes: {}", deep, self.num_nodes());
-            dbg!(unsafe { TOTAL_BUG });
             if self.sat_solver.solve(&[bad, frontier]).is_some() {
+                self.print_info(deep);
                 return false;
             }
             let mut equation = self.new_and_node(frontier, transition);
@@ -156,16 +169,7 @@ impl Aig {
             if reach != reach_new {
                 reach = reach_new
             } else {
-                dbg!(deep);
-                dbg!(unsafe { TOTAL_SIMAND });
-                dbg!(unsafe { TOTAL_SIMAND_NOSAT_INSERT });
-                dbg!(unsafe { TOTAL_SIMAND_SAT_INSERT });
-                dbg!(unsafe { TOTAL_RESIM });
-                dbg!(unsafe { TOTAL_BUG });
-                dbg!(unsafe { TOTAL_ADD_PATTERN });
-                dbg!(unsafe { TOTAL_FRAIG_ADD_SAT });
-                dbg!(unsafe { TOTAL_STASH_GET });
-                dbg!(self.fraig.as_ref().unwrap().nword());
+                self.print_info(deep);
                 return true;
             }
         }

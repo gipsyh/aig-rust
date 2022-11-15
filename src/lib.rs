@@ -573,6 +573,6 @@ mod tests {
     fn test_replace_node() {
         let mut aig = Aig::from_file("aigs/i10.aag").unwrap();
         println!("{}", aig);
-        aig.fraig(false);
+        aig.fraig();
     }
 }

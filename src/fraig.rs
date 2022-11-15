@@ -2,8 +2,9 @@ use crate::{
     sat::SatSolver,
     simulate::{Simulation, SimulationWord, SimulationWords, SimulationWordsHash},
     symbolic_mc::{
-        TOTAL_ADD_PATTERN, TOTAL_BUG, TOTAL_FE_MERGE_NODE, TOTAL_FRAIG_ADD_SAT, TOTAL_RESIM,
-        TOTAL_SIMAND, TOTAL_SIMAND_NOSAT_INSERT, TOTAL_SIMAND_SAT_INSERT,
+        TOTAL_ADD_PATTERN, TOTAL_FE_MERGE_NODE, TOTAL_FRAIG_ADD_SAT,
+        TOTAL_FRAIG_LAZY_CHECKED_WITHOUT_SAT, TOTAL_RESIM, TOTAL_SIMAND, TOTAL_SIMAND_NOSAT_INSERT,
+        TOTAL_SIMAND_SAT_INSERT,
     },
     Aig, AigEdge, AigNode, AigNodeId,
 };
@@ -14,10 +15,10 @@ use std::{
     vec,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FrAig {
     simulation: Simulation,
-    pub sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
+    sim_map: HashMap<SimulationWordsHash, Vec<AigEdge>>,
     lazy_cex: Vec<SimulationWord>,
     ncex: usize,
 }
@@ -142,6 +143,7 @@ impl FrAig {
                     if lazy_value_closure(can, &self.lazy_cex)
                         != new_and_lazy_closure(&self.lazy_cex)
                     {
+                        unsafe { TOTAL_FRAIG_LAZY_CHECKED_WITHOUT_SAT += 1 };
                         assert!(
                             lazy_value_closure(!can, &self.lazy_cex)
                                 != new_and_lazy_closure(&self.lazy_cex)
@@ -323,7 +325,7 @@ impl Aig {
         candidate_map
     }
 
-    pub fn fraig(&mut self, flag: bool) {
+    pub fn fraig(&mut self) {
         assert!(self.fraig.is_none());
         let mut simulation = self.new_simulation(1);
         loop {
@@ -349,9 +351,6 @@ impl Aig {
                     assert_eq!(*k, simulation.abs_hash_value(candidate[0]).0);
                     assert!(sim_map.insert(*k, vec![candidate[0]]).is_none());
                     for c in &candidate[1..] {
-                        if flag {
-                            unsafe { TOTAL_BUG += 1 };
-                        }
                         assert_eq!(*k, simulation.abs_hash_value(*c).0);
                         should_merge.push((*c, candidate[0]));
                     }
@@ -397,15 +396,15 @@ mod tests {
 
     #[test]
     fn test1() {
-        let aig = Aig::from_file("aigs/cec1.aag").unwrap();
-        // aig.fraig();
+        let mut aig = Aig::from_file("aigs/cec1.aag").unwrap();
+        aig.fraig();
         assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 6);
     }
 
     #[test]
     fn test2() {
-        let aig = Aig::from_file("aigs/cec2.aag").unwrap();
-        // aig.fraig();
+        let mut aig = Aig::from_file("aigs/cec2.aag").unwrap();
+        aig.fraig();
         assert_eq!(aig.fraig.unwrap().sim_map.keys().len(), 8);
     }
 }
