@@ -7,6 +7,7 @@ mod eliminate;
 mod fraig;
 mod migrate;
 mod sat;
+mod sat_smc;
 mod simulate;
 mod strash;
 mod symbolic_mc;
@@ -15,7 +16,8 @@ use fraig::FrAig;
 use sat::SatSolver;
 use std::{
     cmp::Reverse,
-    collections::BinaryHeap,
+    collections::{BinaryHeap, HashMap},
+    hash::Hash,
     mem::{swap, take},
     ops::{Index, Not, Range},
     vec,
@@ -554,6 +556,26 @@ impl Aig {
                 })
                 .collect(),
             self.new_and_nodes(equals),
+        )
+    }
+
+    pub fn transfer_latch_outputs_into_pinputs_with_dual(
+        &mut self,
+    ) -> (Vec<(AigNodeId, AigNodeId)>, Vec<(AigEdge, AigEdge)>) {
+        let latchs = take(&mut self.latchs);
+        let mut transition = Vec::new();
+        (
+            latchs
+                .iter()
+                .map(|l| {
+                    assert!(self.nodes[l.input].is_latch_input());
+                    self.nodes[l.input].typ = AigNodeType::PrimeInput;
+                    let inode = self.new_input_node();
+                    transition.push((l.next, inode.into()));
+                    (inode, l.input)
+                })
+                .collect(),
+            transition,
         )
     }
 }

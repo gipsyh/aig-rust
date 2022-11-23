@@ -60,6 +60,10 @@ impl Aig {
                     frontier.insert(s.clone());
                 }
             }
+            for p in frontier {
+                println!("{} {} {} {} {} {}",p[0], p[1], p[2], p[18], p[19], p[20]);
+            }
+            panic!();
             if frontier.is_empty() {
                 dbg!(deep);
                 return;

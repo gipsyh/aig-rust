@@ -57,7 +57,7 @@ impl Aig {
                 self.sat_solver
                     .add_and_node(i, self.nodes[i].fanin0(), self.nodes[i].fanin1())
             } else {
-                debug_assert!(self.nodes[i].is_cinput());
+                assert!(self.nodes[i].is_cinput());
                 self.sat_solver.add_input_node(i)
             }
         }
