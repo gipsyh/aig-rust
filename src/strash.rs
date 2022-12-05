@@ -7,24 +7,24 @@ pub struct Strash {
 }
 
 impl Strash {
-    pub fn find(&self, fanin0: AigEdge, fanin1: AigEdge) -> Option<AigEdge> {
+    pub fn _find(&self, fanin0: AigEdge, fanin1: AigEdge) -> Option<AigEdge> {
         assert!(fanin0 < fanin1);
         self.map
             .get(&(fanin0, fanin1))
             .map(|r| AigEdge::new(*r, false))
     }
 
-    pub fn add(&mut self, fanin0: AigEdge, fanin1: AigEdge, node: AigNodeId) {
+    pub fn _add(&mut self, fanin0: AigEdge, fanin1: AigEdge, node: AigNodeId) {
         assert!(fanin0 < fanin1);
         self.map.insert((fanin0, fanin1), node);
     }
 
-    pub fn remove(&mut self, fanin0: AigEdge, fanin1: AigEdge) {
+    pub fn _remove(&mut self, fanin0: AigEdge, fanin1: AigEdge) {
         assert!(fanin0 < fanin1);
         assert!(self.map.remove(&(fanin0, fanin1)).is_some());
     }
 
-    pub fn new(nodes: &[AigNode]) -> Self {
+    pub fn _new(nodes: &[AigNode]) -> Self {
         let mut map = HashMap::new();
         for node in nodes.iter() {
             if node.is_and() {

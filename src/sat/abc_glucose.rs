@@ -1,4 +1,6 @@
-use super::SatSolver;
+use std::collections::HashSet;
+
+use super::{Clause, SatSolver, CNF};
 use crate::{AigEdge, AigNodeId};
 use abc_glucose::{Lit, Var};
 
@@ -70,16 +72,35 @@ impl SatSolver for Solver {
 
         match self.solver.solve(&assumptions) {
             Some(cex) => {
-                self.cex = cex
-                    .iter()
-                    .chain(assumptions.iter())
-                    .map(|l| AigEdge::new((Into::<i32>::into(l.var())) as usize, l.compl()))
-                    .filter(|e| e.node_id() > 0)
-                    .collect();
+                let set: HashSet<AigEdge> = HashSet::from_iter(
+                    cex.iter()
+                        .chain(assumptions.iter())
+                        .map(|l| AigEdge::new((Into::<i32>::into(l.var())) as usize, l.compl()))
+                        .filter(|e| e.node_id() > 0),
+                );
+                self.cex = Vec::from_iter(set);
+                self.cex.sort();
                 Some(&self.cex)
             }
             None => None,
         }
+    }
+}
+
+impl Solver {
+    pub fn add_cnf(&mut self, cnf: &CNF) {
+        for clause in cnf.iter() {
+            self.add_clause(clause)
+        }
+    }
+
+    pub fn add_clause(&mut self, clause: &Clause) {
+        let clause: Vec<Lit> = clause
+            .lits
+            .iter()
+            .map(|e| Lit::new(Self::node_to_var(e.node_id()), e.compl()))
+            .collect();
+        self.solver.add_clause(&clause);
     }
 }
 

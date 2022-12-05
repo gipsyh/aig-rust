@@ -7,6 +7,7 @@ mod eliminate;
 mod fraig;
 mod migrate;
 mod sat;
+mod sat_smc;
 mod simulate;
 mod strash;
 mod symbolic_mc;
@@ -16,6 +17,7 @@ use sat::SatSolver;
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
+    hash::Hash,
     mem::{swap, take},
     ops::{Index, Not, Range},
     vec,
@@ -555,6 +557,43 @@ impl Aig {
                 .collect(),
             self.new_and_nodes(equals),
         )
+    }
+
+    pub fn evaluate(&mut self, values: &[AigEdge]) -> Vec<Option<bool>> {
+        let mut map = vec![None; self.num_nodes()];
+        map[0] = Some(false);
+        for value in values {
+            map[value.node_id()] = Some(!value.compl());
+        }
+        for id in self.nodes_range_with_true() {
+            if map[id].is_none() {
+                if self.nodes[id].is_and() {
+                    let fanin0 = self.nodes[id].fanin0();
+                    let fanin1 = self.nodes[id].fanin1();
+                    let fanin0_value = map[fanin0.node_id()].map(|v| v ^ fanin0.compl());
+                    let fanin1_value = map[fanin1.node_id()].map(|v| v ^ fanin1.compl());
+                    map[id] = match (fanin0_value, fanin1_value) {
+                        (None, None) => None,
+                        (None, Some(v)) => {
+                            if v {
+                                None
+                            } else {
+                                Some(v)
+                            }
+                        }
+                        (Some(v), None) => {
+                            if v {
+                                None
+                            } else {
+                                Some(v)
+                            }
+                        }
+                        (Some(v0), Some(v1)) => Some(v0 & v1),
+                    }
+                }
+            }
+        }
+        map
     }
 }
 

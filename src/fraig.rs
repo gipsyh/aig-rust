@@ -223,7 +223,7 @@ impl FrAig {
     pub fn cleanup_redundant(
         &mut self,
         node_map: &[Option<AigNodeId>],
-        sat_solver: &mut dyn SatSolver,
+        _sat_solver: &mut dyn SatSolver,
         nodes: &[AigNode],
     ) {
         self.simulation.cleanup_redundant(node_map);

@@ -30,11 +30,22 @@ impl Display for Aig {
         writeln!(f, "and num: {}", self.num_ands)?;
         writeln!(f, "bad state num: {}", self.bads.len())?;
         writeln!(f, "------------------")?;
-        write!(f, "prime inputs:")?;
-        for ci in &self.inputs {
-            write!(f, " {}", self.nodes[*ci])?;
+        write!(f, "inputs:")?;
+        for input in &self.inputs {
+            write!(f, " {}", self.nodes[*input])?;
         }
         writeln!(f, "\n------------------")?;
+        writeln!(f, "latchs:")?;
+        for latch in &self.latchs {
+            writeln!(
+                f,
+                "input: {}, next: {}{}",
+                self.nodes[latch.input],
+                latch.next,
+                self.nodes[latch.next.node_id()]
+            )?;
+        }
+        writeln!(f, "------------------")?;
         for and in self.ands_iter() {
             let fanin0 = and.fanin0();
             let fanin1 = and.fanin1();
