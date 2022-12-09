@@ -8,6 +8,7 @@ use abc_glucose::{Lit, Var};
 pub struct Solver {
     solver: abc_glucose::Solver,
     cex: Vec<AigEdge>,
+    cex_all: Vec<Vec<AigEdge>>,
 }
 
 impl Solver {
@@ -17,6 +18,7 @@ impl Solver {
         Self {
             solver,
             cex: Vec::new(),
+            cex_all: Vec::new(),
         }
     }
 }
@@ -101,6 +103,40 @@ impl Solver {
             .map(|e| Lit::new(Self::node_to_var(e.node_id()), e.compl()))
             .collect();
         self.solver.add_clause(&clause);
+    }
+
+    pub fn solve_all(&mut self, assumptions: &[AigEdge]) -> Option<&[Vec<AigEdge>]> {
+        self.new_round();
+        self.mark_cone(assumptions);
+        if assumptions
+            .iter()
+            .any(|e| *e == AigEdge::constant_edge(false))
+        {
+            return None;
+        }
+        let assumptions: Vec<Lit> = assumptions
+            .iter()
+            .map(|e| Lit::new(Self::node_to_var(e.node_id()), e.compl()))
+            .collect();
+
+        match self.solver.solve_all(&assumptions) {
+            Some(cexs) => {
+                self.cex_all.clear();
+                for cex in cexs {
+                    let set: HashSet<AigEdge> = HashSet::from_iter(
+                        cex.iter()
+                            .chain(assumptions.iter())
+                            .map(|l| AigEdge::new((Into::<i32>::into(l.var())) as usize, l.compl()))
+                            .filter(|e| e.node_id() > 0),
+                    );
+                    let mut cex = Vec::from_iter(set);
+                    cex.sort();
+                    self.cex_all.push(cex);
+                }
+                Some(&self.cex_all)
+            }
+            None => None,
+        }
     }
 }
 

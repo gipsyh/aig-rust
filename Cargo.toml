@@ -11,3 +11,4 @@ rand = "0.8.5"
 minisat = { path = "../minisat-rs" }
 abc-glucose = { path = "../abc-glucose" }
 glucose = { path = "../glucose" }
+biodivine-lib-bdd = { path = "../biodivine-lib-bdd" }

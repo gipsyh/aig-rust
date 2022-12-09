@@ -237,6 +237,12 @@ impl Not for DNF {
     }
 }
 
+impl From<Vec<Cube>> for DNF {
+    fn from(value: Vec<Cube>) -> Self {
+        Self { cubes: value }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Cube {
     lits: Vec<AigEdge>,
@@ -267,6 +273,12 @@ impl From<&[AigEdge]> for Cube {
         Self {
             lits: value.to_vec(),
         }
+    }
+}
+
+impl From<Vec<AigEdge>> for Cube {
+    fn from(value: Vec<AigEdge>) -> Self {
+        Self { lits: value }
     }
 }
 
